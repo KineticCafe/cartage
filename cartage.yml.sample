@@ -1,0 +1,172 @@
+---
+# The name of the application. Optional, defaults to the basename of the origin
+# Git URL. Overridden with <tt>cartage --name NAME</tt>.
+# ---
+# name: my-application
+
+# The target path for the Cartage package. Optional and defaults to
+# <tt>./tmp</tt>. Overridden with <tt>cartage --target PATH</tt>.
+# ---
+# target: tmp/cartage
+
+# The root path of the application. Optional, defaults to the top of the Git
+# repository (<tt>git rev-parse --show-cdup</tt>). Overridden with <tt>cartage
+# --root-path ROOT_PATH</tt>.
+# ---
+# root_path: .
+
+# The timestamp for the final package (which is
+# <tt><em>name</em>-<em>timestamp</em></tt>). Optional, defaults to the current
+# time in UTC. Overridden with <tt>cartage --timestamp TIMESTAMP</tt>. This
+# value is *not* validated to be a time value when supplied.
+# ---
+# timestamp: not-a-timestamp
+
+# The bundle cache path, where the package’s <tt>vendor-bundle.tar.bz2</tt>
+# will be stored between builds. Optional, defaults to <tt>./tmp</tt>.
+# Overridden with <tt>cartage --bundle-cache BUNDLE_CACHE</tt>.
+# ---
+# bundle_cache: tmp/cache
+
+# The groups to exclude from <tt>bundle install</tt>. Optional, defaults to
+# <tt>[ "development", "test"]</tt>. Overridden with <tt>cartage --without
+# group1,group2</tt>.
+# ---
+# without:
+#   - development
+#   - test
+#   - other
+
+# This section is for all plug-in configuration.
+plugins:
+  # This section is for cartage-s3.
+  s3:
+    # The path to the cartage S3 bucket or directory (for another service that
+    # Fog::Storage supports). This has no default and is overridden with
+    # <tt>cartage s3 --path PATH</tt>.
+    # ---
+    # path: cartage-bucket
+
+    # The credentials dictionary passed to Fog::Storage for uploads. Each
+    # provider has different keys. If present, this will dictionary be used in
+    # preference to <tt>cartage s3</tt> flags <tt>--key-id</tt>,
+    # <tt>--secret-key</tt>, and <tt>--region</tt> as those work *only* with
+    # Amazon AWS S3.
+    credentials:
+      # The name of the provider.
+      # ---
+      # provider: AWS
+      # provider: Rackspace
+      # provider: Google
+
+      # The name of the access user. The name of this key varies per provider.
+      # ---
+      # aws_access_key_id: YOUR_AWS_ACCESS_KEY_ID
+      # rackspace_username: RACKSPACE_USERNAME
+      # google_storage_access_key_id: YOUR_SECRET_ACCESS_KEY_ID
+
+      # The authentication key. The name of this key varies per provider.
+      # ---
+      # aws_secret_access_key: YOUR_AWS_SECRET_ACCESS_KEY
+      # rackspace_api_key: RACKSPACE_API_KEY
+      # google_storage_secret_access_key: YOUR_SECRET_ACCESS_KEY
+
+      # Other keys can be provided as needed for the provider. AWS generally
+      # wants to know the +region+, and Rackspace needs to know if you are
+      # using its European datacentre.
+      # ---
+      # region: us-west-2
+      # rackspace_auth_url: lon.auth.api.rackspacecloud.com
+
+  # This section is for cartage-remote. cartage-remote will not work without a
+  # configuration section at this point because remote build scripts tend to be
+  # heavily customized. This may change in the future.
+  remote:
+    # The name of the build server. This field is required and can show up in
+    # two different formats.
+    # ---
+    # server: build@my-build-machine:2222
+    # server:
+    #   user: build
+    #   host: my-build-machine
+    #   port: 2222
+
+    # The SSH key(s) used to connect to the server. Optional, and
+    # cartage-remote will use <tt>~/.ssh/*id_[rd]sa</tt> to find keys if this
+    # is not provided. Three formats are available.
+    #
+    # As a dictionary (first form), the private keys are embedded directly in
+    # the configuration file. As a string or an array, provides glob patterns
+    # to find key files on disk.
+    # ---
+    # keys:
+    #   custom: |
+    #     -----BEGIN RSA PRIVATE KEY-----
+    #     ...
+    #     -----END RSA PRIVATE KEY-----
+    # keys:
+    #   - "config/secrets/*id_[rd]sa"
+    #   - "~/.ssh/*id_[rd]sa"
+    # keys: "config/secrets/*id_[rd]sa"
+
+    # The build script that will be run on the remote server. This is optional
+    # with a reasonable default.
+    #
+    #   #!/bin/bash
+    #   set -e
+    #   if [ -f Gemfile ]; then
+    #     bundle install --path %<remote_bundle>s
+    #     bundle exec cartage build \
+    #       --config-file %<config_file>s \
+    #       --target %<project_path>s
+    #   else
+    #     cartage build --config-file %<config_file>s \
+    #       --target %<project_path>s
+    #   fi
+    # ---
+    # build: |
+    #   #!/bin/bash
+    #   set -e
+    #   if [ -f Gemfile ]; then
+    #     bundle install --path %<remote_bundle>s
+    #     bundle exec cartage s3 \
+    #       --config-file %<config_file>s \
+    #       --target %<project_path>s \
+    #       --verbose
+    #   else
+    #     cartage build \
+    #       --config-file %<config_file>s \
+    #       --target %<project_path>s \
+    #       --verbose
+    #   fi
+
+    # The prebuild script that will be run on the local system. This is
+    # optional with a reasonable default.
+    #
+    #   #!/bin/bash
+    #   ssh-keyscan -H %<remote_host>s >> ~/.ssh/known_hosts
+    # ---
+    # prebuild: |
+    #   #!/bin/bash
+    #   ssh-keyscan -H %<remote_host>s >> ~/.ssh/known_hosts
+    #   echo 'Prebuild complete'
+
+    # The postbuild script that will be run on the local system. This is
+    # optional with no default (no post-build actions).
+    # ---
+    # postbuild: |
+    #   #!/bin/bash
+    #   t="token=SLACK_TOKEN"
+    #   c="channel=%23ci"
+    #   d=MYDOMAIN
+    #   u="https://${d}.slack.com/services/hooks/slackbot?${t}&${c}"
+    #   curl --data "Build %<name>s-%<timestamp>s complete." ${u}
+
+# This must not be indented for it to work.
+<% if File.exist?('config/ansible/cartage.yml') %>
+<%= File.read('config/ansible/cartage.yml') %>
+<% end %>
+<% if File.exist?('config/local/cartage.yml') %>
+<%= File.read('config/local/cartage.yml') %>
+<% end %>
+

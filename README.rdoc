@@ -1,0 +1,192 @@
+= Cartage by Kinetic Cafe
+
+code :: https://github.com/KineticCafe/cartage/
+issues :: https://github.com/KineticCafe/cartage/issues
+docs :: http://www.rubydoc.info/github/KineticCafe/cartage/master
+continuous integration :: {<img src="https://travis-ci.org/KineticCafe/cartage.svg?branch=master" alt="Build Status" />}[https://travis-ci.org/KineticCafe/cartage]
+
+== Description
+
+Cartage provides a plug-in based tool to reliably create a package for a
+Bundler-based Ruby application that can be used in deployment with a
+configuration tool like Ansible, Chef, Puppet, or Salt. The package is created
+with its dependencies bundled in +vendor/bundle+, so it can be deployed in
+environments with strict access control rules and without requiring development
+tool access.
+
+Cartage has learned its tricks from Heroku, Capistrano, and Hoe. From Hoe, it
+learned to keep a manifest to control what is packaged (as well as its plug-in
+system). From Heroku, it learned to keep a simple ignore file. From Capistrano,
+it learned to mark the Git hashref as a file in its built package, and to
+timestamp the packages.
+
+Cartage follows a relatively simple set of steps when creating a package:
+
+1.  Copy the application files to the work area. The application’s files are
+    specified in +Manifest.txt+ and filtered against the exclusion list
+    (+.cartignore+). If there is no +.cartignore+, try to use +.slugignore+. If
+    there is no +.slugignore+, Cartage will use a sensible default exclusion
+    list. To override the use of this exclusion list, an empty +.cartignore+
+    file must be present.
+
+2.  The Git hashref is written to the work area (as +release_hashref+) and to
+    the package staging area.
+
+3.  Files that have been modified are restored to pristine condition in the
+    work area. The source files are not touched. (This ensures that
+    +config/database.yml+, for example, will not be the version used by a
+    continuous integration system.)
+
+4.  Bundler is fetched into the work area, and the bundle is installed into the
+    work area’s +vendor/bundle+ without the +development+ and +test+
+    environments. If a bundle cache is kept (by default, one is), the resulting
+    +vendor/bundle+ will be put into a bundle cache so that future bundle
+    installs are faster.
+
+5.  A timestamped tarball is created from the contents of the work area. It can
+    then be copied to a more permanent or accessible location.
+
+Cartage is extremely opinionated about its tools and environment:
+
+* The packages are created with +tar+ and +bzip2+ using <tt>tar cfj</tt>.
+* Cartage only understands +git+, which is used for creating
+  <tt>release_hashref</tt>s, +Manifest.txt+ creation and comparison, and even
+  default application name detection (from the name of the origin remote).
+
+== Synopsis
+
+    # Build a package from the current machine, using the Manifest.txt.
+    cartage pack
+
+    # Create or update a Manifest.txt from the current repository.
+    cartage manifest
+    # Check the current Manifest against the files that should be there.
+    cartage check
+
+    # Create a .cartignore file for use.
+    cartage install-ignore
+    # Overwrite the current .cartignore with the default.
+    cartage install-ignore --force
+    # Merge the current .cartignore with the default. Merging automatically
+    # removes any comments.
+    cartage install-ignore --merge
+
+== Install
+
+Add cartage to your Gemfile:
+
+    gem 'cartage', '~> 1.0', groups: [ :development, :test ]
+
+Or manually install:
+
+  % gem install cartage
+
+== Cartage Plug-Ins
+
+Cartage is extensible by plug-ins. This version of the plug-in system provides
+one integration point, subcommands. Cartage is implemented with
+{cmdparse}[http://cmdparse.gettalong.org/], and plug-ins implement a class that
+performs the work (nested under the Cartage namespace) and one or more commands
+that execute on the work. Plug-in files are discovered immediately relative to
+the +cartage+ directory, and are registered on inheritance from
+Cartage::Plugin. This plug-in would be found in <tt>'cartage/info.rb'</tt>.
+Each plug-in will get a lazy-instantiation constructor added to Cartage itself
+that provides a reference to the owning Cartage instance.
+
+Below is an example of a Cartage plug-in to provide a <tt>cartage info</tt>
+command. This command isn’t very useful, since most values used in Cartage
+packaging are lazily resolved, but it demonstrates how simple a plug-in can be.
+
+    require 'cartage/plugin'
+    require 'cartage/command'
+
+    # An instance of this will be created lazily by calling Cartage#info.
+    class Cartage::Info < Cartage::Plugin
+      # It does not matter what this method is. It’s just a public instance
+      # method used by the command.
+      def run
+        @cartage.instance_variables.sort.each { |ivar|
+          puts "#{ivar}: #{@cartage.instance_variable_get(ivar)}"
+        }
+      end
+
+      # This will create a CmdParse command that responds to 'info' and takes
+      # no subcommands. If the plug-in provides a number of features, it is
+      # recommended that subcommands be used.
+      class InfoCommand < Cartage::Command
+        # The Cartage::Command objects are initialized with the cartage
+        # instance. Set the command name with the string here.
+        def initialize(cartage)
+          super(cartage, 'info', takes_commands: false)
+          short_desc('Shows configuration information about Cartage.')
+        end
+
+        # This is run by Cartage::Command#execute to make the command happen.
+        # An exception should be thrown on failure, as return values do not
+        # affect the status code of the application.
+        def perform
+          @cartage.info.run
+        end
+      end
+
+      # This returns the command(s) created by this plug-in.
+      def self.commands
+        [ Cartage::Info::InfoCommand ]
+      end
+    end
+
+For a more comprehensive example, see the implementation of Manifest
+(<tt>lib/cartage/manifest.rb</tt>) and its commands
+(<tt>lib/cartage/manifest/commands.rb</tt>).
+
+Future releases of Cartage will offer additional ways to extend Cartage.
+
+== Alternate Projects
+
+The closest project to Cartage is {pkgr}[https://github.com/crohr/pkgr]. Pkgr
+will create a distribution package for Ubuntu (14.04 and 12.02, Debian 7),
+CentOS 6, SLES 12, and Fedora 20.
+
+Both Cartage and Pkgr provide isolated builds with all in-application
+dependencies included.
+
+Pkgr offers several advantages over Cartage:
+
+* It supports more languages than just Ruby (suport for Go and Node.js are
+  confirmed and more are in progress). Cartage will probably have more language
+  support in the future, but it is not an immediate priority. For Ruby and
+  Node.js, the interpreters are included locally to the application.
+
+* It creates a distribution package, meaning that you can just use +apt-get+ to
+  install or upgrade your package.
+
+* It reuses Heroku buildpacks (this requires that your application behave a bit
+  more like a Heroku application, which may be a bit more 
+
+Cartage offers advantages over Pkgr:
+
+* Cartage offers a plug-in based extension system. While the plug-in system is
+  currently limited to adding new +cartage+ commands, this is not its only
+  possible use. Existing plug-ins are +cartage-s3+ (upload the resulting
+  package to S3), +cartage-remote+ (build on a remote machine), and
+  +cartage-rack+ (provide a Rack application to read the +release_hashref+ over
+  an API call).
+
+* Cartage makes it easier to integrate into a workflow translated from
+  Capistrano, as it essentially replaces the source control checkout stage.
+  This process makes it really easy to integrate into an Ansible playbook (as
+  we have done at Kinetic Cafe).
+
+== Cartage Semantic Versioning
+
+Cartage uses a {Semantic Versioning}[http://semver.org/] scheme with one
+significant change:
+
+* When PATCH is zero (+0+), it will be omitted from version references.
+
+Additionally, the major version will generally be reserved for plug-in
+infrastructure changes.
+
+:include: Contributing.rdoc
+
+:include: Licence.rdoc
