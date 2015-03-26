@@ -2,17 +2,29 @@ require 'pathname'
 
 # Cartage, a package builder.
 class Cartage
-  VERSION = '1.0' #:nodoc:
+  VERSION = '1.1' #:nodoc:
 
-  # Plug-in commands that want to return a non-zero exit code should raise
-  # Cartage::QuietError.new(exitstatus).
-  class QuietError < StandardError
-    # Initialize the exception with +exitstatus+.
-    def initialize(exitstatus)
+  # Plug-in commands that want to return a specific exit code should use
+  # Cartage::StatusError to wrap the error.
+  class StatusError < StandardError
+    # Initialize the exception with +exitstatus+ and the exception to wrap.
+    def initialize(exitstatus, exception_or_message)
+      super(exception_or_message) if exception_or_message
       @exitstatus = exitstatus
     end
 
     # The exit status to be returned from this exception.
+    attr_reader :exitstatus
+  end
+
+  # Plug-in commands that want to return a non-zero exit code without a message
+  # should raise Cartage::QuietError.new(exitstatus).
+  class QuietError < StatusError
+    # Initialize the exception with +exitstatus+.
+    def initialize(exitstatus)
+      super(exitstatus, nil)
+    end
+
     attr_reader :exitstatus
   end
 
@@ -285,6 +297,10 @@ class Cartage
     run %W(tar xfj #{bundle_cache} -C #{work_path}) if bundle_cache.exist?
   end
 
+  def create_bundle_cache
+    run %W(tar cfj #{bundle_cache} -C #{work_path} vendor/bundle)
+  end
+
   def install_vendor_bundle
     extract_bundle_cache
 
@@ -449,13 +465,10 @@ configuration file.
 
     registered_commands.uniq.each { |cmd| cli.add_command(cmd.new(cartage)) }
     cli.parse
-    0
-  rescue Cartage::QuietError => qe
-    qe.exitstatus
-  rescue StandardError => e
-    $stderr.puts "Error:\n    " + e.message
-    $stderr.puts e.backtrace.join("\n") if cartage.verbose
-    2
+    return 0
+  rescue Exception => exception
+    show_message_for exception, for_cartage: cartage
+    return exitstatus_for(exception)
   end
 
   # Set options common to anything that builds a package (that is, it calls
@@ -490,6 +503,21 @@ configuration file.
   private
   def registered_commands
     @registered_commands ||= []
+  end
+
+  def exitstatus_for(exception)
+    if exception.respond_to? :exitstatus
+      exception.exitstatus
+    else
+      2
+    end
+  end
+
+  def show_message_for(exception, for_cartage:)
+    unless exception.kind_of?(Cartage::QuietError)
+      $stderr.puts "Error:\n    " + exception.message
+      $stderr.puts exception.backtrace.join("\n") if for_cartage.verbose
+    end
   end
 end
 

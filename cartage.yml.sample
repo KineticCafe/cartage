@@ -153,14 +153,26 @@ plugins:
 
     # The postbuild script that will be run on the local system. This is
     # optional with no default (no post-build actions).
+    #
+    # This script will be passed the stage identifier as $1 (valid values are
+    # config, ssh_config, prebuild, remote_clone, remote_build, cleanup, or
+    # finished). If the build was interrupted with an error, the error
+    # message will be passed as $2.
     # ---
     # postbuild: |
     #   #!/bin/bash
-    #   t="token=SLACK_TOKEN"
-    #   c="channel=%23ci"
-    #   d=MYDOMAIN
-    #   u="https://${d}.slack.com/services/hooks/slackbot?${t}&${c}"
-    #   curl --data "Build %<name>s-%<timestamp>s complete." ${u}
+    #   case ${1:-undefined} in
+    #     finished)
+    #       t="token=SLACK_TOKEN"
+    #       c="channel=%23ci"
+    #       d=MYDOMAIN
+    #       u="https://${d}.slack.com/services/hooks/slackbot?${t}&${c}"
+    #       curl --data "Build %<name>s-%<timestamp>s complete." ${u}
+    #       ;;
+    #     *)
+    #       : # ${1} is the stage, ${2} is the error message
+    #       ;;
+    #   esac
 
 # This must not be indented for it to work.
 <% if File.exist?('config/ansible/cartage.yml') %>
@@ -169,4 +181,3 @@ plugins:
 <% if File.exist?('config/local/cartage.yml') %>
 <%= File.read('config/local/cartage.yml') %>
 <% end %>
-

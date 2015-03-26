@@ -1,3 +1,21 @@
+=== 1.1 / 2015-03-26
+
+*   1 major enhancement
+
+    *   Added a Cartage::StatusError with an exitstatus support.
+        Cartage::QuietError is now based on this.
+
+*   1 minor bugfix
+
+    *   Restored an accidentally removed method,
+        Cartage::#create_bundle_cache.
+
+*   2 documentation improvements
+
+    *   Identified postbuild script stages.
+
+    *   Improved the Slack notifier example postbuild script.
+
 === 1.0 / 2015-03-24
 
 *   1 major enhancement
