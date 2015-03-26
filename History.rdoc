@@ -1,3 +1,9 @@
+=== 1.1.1 / 2015-03-26
+
+*   1 minor bugfix
+
+    *   Fixed a Ruby syntax issue with Ruby 2.0.
+
 === 1.1 / 2015-03-26
 
 *   1 major enhancement

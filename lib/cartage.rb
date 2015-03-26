@@ -2,7 +2,7 @@ require 'pathname'
 
 # Cartage, a package builder.
 class Cartage
-  VERSION = '1.1' #:nodoc:
+  VERSION = '1.1.1' #:nodoc:
 
   # Plug-in commands that want to return a specific exit code should use
   # Cartage::StatusError to wrap the error.
@@ -513,10 +513,12 @@ configuration file.
     end
   end
 
-  def show_message_for(exception, for_cartage:)
+  def show_message_for(exception, for_cartage: nil)
     unless exception.kind_of?(Cartage::QuietError)
       $stderr.puts "Error:\n    " + exception.message
-      $stderr.puts exception.backtrace.join("\n") if for_cartage.verbose
+      if for_cartage && for_cartage.verbose
+        $stderr.puts exception.backtrace.join("\n")
+      end
     end
   end
 end
