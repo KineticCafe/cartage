@@ -258,14 +258,26 @@ as cartage-remote runs SSH in a paranoid mode.
 The postbuild script that will be run on the local system. This is optional
 with no default (no post-build actions).
 
+The postbuild script will be passed the stage identifier as <tt>$1</tt>
+(valid values are +config+, +ssh_config+, +prebuild+, +remote_clone+,
++remote_build+, +cleanup+, or +finished+). If the build was interrupted with
+an error, the error message will be passed as <tt>$2</tt>.
+
 An example that posts a message to Slack is below.
 
     plugins:
       remote:
         postbuild: |
           #!/bin/bash
-          t="token=SLACK_TOKEN"
-          c="channel=%23ci"
-          d=MYDOMAIN
-          u="https://${d}.slack.com/services/hooks/slackbot?${t}&${c}"
-          curl --data "Build %<name>s-%<timestamp>s complete." ${u}
+          case ${1:-undefined} in
+            finished)
+              t="token=SLACK_TOKEN"
+              c="channel=%23ci"
+              d=MYDOMAIN
+              u="https://${d}.slack.com/services/hooks/slackbot?${t}&${c}"
+              curl --data "Build %<name>s-%<timestamp>s complete." ${u}
+              ;;
+            *)
+              : # ${1} is the stage, ${2} is the error message
+              ;;
+          esac
