@@ -57,11 +57,12 @@ module Minitest::ENVStub
 
     mfile.send(:define_method, :open, &fopen)
     yield
-    assert_equal expected, string_io.string
+    actual = String.new(string_io.string)
   ensure
     mfile.send(:undef_method, :open)
     mfile.send(:alias_method, :open, :__stub_open__)
     mfile.send(:undef_method, :__stub_open__)
+    assert_equal expected, actual
   end
 
   def stub_pathname_expand_path value, &block

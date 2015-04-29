@@ -94,6 +94,14 @@ or update the Manifest.txt file with the following command:
     ignore_file.open('w') { |f| f.puts data } if save
   end
 
+  def create_file_list(filename)
+    Pathname(filename).tap { |file|
+      file.open('w') { |f|
+        f.puts prune(%x(git ls-files).split.map(&:chomp)).sort.uniq.join("\n")
+      }
+    }
+  end
+
   private
 
   def ignore_file
@@ -106,14 +114,6 @@ or update the Manifest.txt file with the following command:
 
   def manifest_file
     @manifest_file ||= @cartage.root_path.join('Manifest.txt')
-  end
-
-  def create_file_list(filename)
-    Pathname(filename).tap { |file|
-      file.open('w') { |f|
-        f.puts prune(%x(git ls-files).split.map(&:chomp)).sort.join("\n")
-      }
-    }
   end
 
   def ignore_patterns(with_slugignore: false)
