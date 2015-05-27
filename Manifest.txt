@@ -22,3 +22,4 @@ lib/cartage/plugin.rb
 test/minitest_config.rb
 test/test_cartage.rb
 test/test_cartage_config.rb
+test/test_cartage_manifest.rb

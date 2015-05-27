@@ -210,8 +210,12 @@ db/seeds/test/
 # db/seeds/staging/
 log/
 test/
+tests/
 rspec/
+spec/
+specs/
 feature/
+features/
 tmp/
 vendor/bundle/
   EOM

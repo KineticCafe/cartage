@@ -2,7 +2,7 @@ require 'pathname'
 
 # Cartage, a package builder.
 class Cartage
-  VERSION = '1.1.1' #:nodoc:
+  VERSION = '1.2' #:nodoc:
 
   # Plug-in commands that want to return a specific exit code should use
   # Cartage::StatusError to wrap the error.
@@ -352,7 +352,10 @@ class Cartage
     ]
 
     IO.popen(command) do |show|
-      work_path.join(filename).open('w') { |f| f.write show.read }
+      work_path.join(filename).open('w') { |f|
+        f.puts show.read
+        f.puts timestamp
+      }
     end
   end
 

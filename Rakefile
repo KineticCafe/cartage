@@ -27,7 +27,6 @@ spec = Hoe.spec 'cartage' do
   self.extra_dev_deps << ['hoe-doofus', '~> 1.0']
   self.extra_dev_deps << ['hoe-gemspec2', '~> 1.1']
   self.extra_dev_deps << ['hoe-git', '~> 1.5']
-  self.extra_dev_deps << ['hoe-geminabox', '~> 0.3']
   self.extra_dev_deps << ['hoe-travis', '~> 1.2']
   self.extra_dev_deps << ['minitest', '~> 5.4']
   self.extra_dev_deps << ['minitest-autotest', '~> 1.0']
@@ -50,9 +49,9 @@ end
 namespace :test do
   task :coverage do
     prelude = <<-EOS
-require "simplecov"
-SimpleCov.start("test_frameworks") { command_name "Minitest" }
-gem "minitest"
+require 'simplecov'
+SimpleCov.start('test_frameworks') { command_name 'Minitest' }
+gem 'minitest'
     EOS
     spec.test_prelude = prelude.split($/).join('; ')
     Rake::Task['test'].execute
