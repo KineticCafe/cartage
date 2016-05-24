@@ -1,31 +1,22 @@
+# frozen_string_literal: true
+
 require 'pathname'
+require 'json'
 
-# Cartage, a package builder.
+require 'cartage/core'
+require 'cartage/plugin'
+require 'cartage/config'
+
+##
+# Cartage, a reliable package builder.
 class Cartage
-  VERSION = '1.2' #:nodoc:
+  VERSION = '2.0.rc1' #:nodoc:
 
-  # Plug-in commands that want to return a specific exit code should use
-  # Cartage::StatusError to wrap the error.
-  class StatusError < StandardError
-    # Initialize the exception with +exitstatus+ and the exception to wrap.
-    def initialize(exitstatus, exception_or_message)
-      super(exception_or_message) if exception_or_message
-      @exitstatus = exitstatus
-    end
-
-    # The exit status to be returned from this exception.
-    attr_reader :exitstatus
-  end
-
-  # Plug-in commands that want to return a non-zero exit code without a message
-  # should raise Cartage::QuietError.new(exitstatus).
-  class QuietError < StatusError
-    # Initialize the exception with +exitstatus+.
-    def initialize(exitstatus)
-      super(exitstatus, nil)
-    end
-
-    attr_reader :exitstatus
+  # Creates a new Cartage instance. If provided a Cartage::Config object in
+  # +config+, sets the configuration and resolves it. If +config+ is not
+  # provided, the default configuration will be loaded.
+  def initialize(config = nil)
+    self.config = config || Cartage::Config.load(:default)
   end
 
   ##
@@ -39,6 +30,8 @@ class Cartage
   # The default name of the package to be created, derived from the
   # repository's Git URL.
 
+  attr_accessor_with_default :name, default: -> { File.basename(repo_url, '.git') }
+
   ##
   # :attr_accessor: root_path
   #
@@ -50,6 +43,16 @@ class Cartage
   # The default root path of the package, the top-level path of the Git
   # repository.
 
+  attr_reader_with_default :root_path do
+    Pathname(%x(git rev-parse --show-cdup).chomp).expand_path
+  end
+
+  ##
+  def root_path=(v) #:nodoc:
+    reset_computed_values
+    @root_path = Pathname(v).expand_path
+  end
+
   ##
   # :attr_accessor: target
   #
@@ -59,6 +62,10 @@ class Cartage
   # :method: default_target
   #
   # The default target of the package, './tmp'.
+
+  attr_accessor_with_default :target,
+    transform: ->(v) { Pathname(v) },
+    default: -> { Pathname('tmp') }
 
   ##
   # :attr_accessor: timestamp
@@ -70,16 +77,76 @@ class Cartage
   #
   # The default timestamp.
 
-  ##
-  # :attr_accessor: without_groups
-  #
-  # The environments to exclude from a bundle install.
+  attr_accessor_with_default :timestamp, default: -> {
+    Time.now.utc.strftime('%Y%m%d%H%M%S')
+  }
 
   ##
-  # :method: default_without_environments
+  # :attr_accessor: compression
   #
-  # The default environments to exclude from a bundle install. The default is
-  # <tt>[ 'test', 'development' ]</tt>.
+  # The compression to be applied to any tarballs created (either the final
+  # tarball or the dependency cache tarball).
+
+  ##
+  def compression
+    unless defined?(@compression)
+      @compression = :bzip2
+      reset_computed_values
+    end
+    @compression
+  end
+
+  ##
+  def compression=(value) #:nodoc:
+    case value
+    when :bzip2, :none, :gzip, 'bzip2', 'none', 'gzip'
+      @compression = value
+      reset_computed_values
+    else
+      fail ArgumentError, "Invalid compression type #{value.inspect}"
+    end
+  end
+
+  # If +true+, dependencies will not be cached.
+  attr_accessor :disable_dependency_cache
+
+  ##
+  # :attr_reader: dependency_cache
+  #
+  # The path to the tarball of vendored dependencies in the working path.
+  #
+  # Vendored dependencies vary by build system. With Ruby and Bundler, this
+  # would be the <tt>vendor/bundle</tt> path; with npm, this would be the
+  # <tt>node_modules</tt> path.
+
+  ##
+  def dependency_cache
+    self.dependency_cache_path = tmp_path unless defined?(@dependency_cache)
+    @dependency_cache
+  end
+
+  ##
+  # :attr_accessor: dependency_cache_path
+  #
+  # Reads or sets the vendored dependency cache path. This is where the tarball
+  # of vendored dependencies in the working path will reside.
+  #
+  # On a CI system, this should be written somewhere that the CI system uses
+  # for build caching. On Semaphore CI, this would be
+  # <tt>$SEMAPHORE_CACHE</tt>.
+
+  ##
+  def dependency_cache_path
+    self.dependency_cache_path = tmp_path unless defined?(@dependency_cache_path)
+    @dependency_cache_path
+  end
+
+  ##
+  def dependency_cache_path=(path) #:nodoc:
+    @dependency_cache_path = Pathname(path || tmp_path).expand_path
+    @dependency_cache = @dependency_cache_path.
+      join("dependency-cache.tar#{tar_compression_extension}")
+  end
 
   # Commands that normally output data will have that output suppressed.
   attr_accessor :quiet
@@ -87,152 +154,188 @@ class Cartage
   # Commands will be run with extra information.
   attr_accessor :verbose
 
-  # The environment to be used when resolving configuration options from a
-  # configuration file. Cartage configuration files do not usually have
-  # environment partitions, but if they do, use this to select the environment
-  # partition.
-  attr_accessor :environment
-
-  # The Config object. If +with_environment+ is +true+ (the default) and
-  # #environment has been set, only the subset of the config matching
-  # #environment will be returned. If +with_environment+ is +false+, the full
-  # configuration will be returned.
-  #
-  # If +for_plugin+ is specified, only the subset of the config for the named
-  # plug-in will be returned.
-  #
-  #     # Assume that #environment is 'development'.
-  #     cartage.config
-  #       # => base_config[:development]
-  #     cartage.config(with_environment: false)
-  #       # => base_config
-  #     cartage.config(for_plugin: 's3')
-  #       # => base_config[:development][:plugins][:s3]
-  #     cartage.config(for_plugin: 's3', with_environment: false)
-  #       # => base_config[:plugins][:s3]
-  def config(with_environment: true, for_plugin: nil)
-    env  = environment.to_sym if with_environment && environment
-    plug = for_plugin.to_sym if for_plugin
-
-    cfg = if env
-            base_config[env]
-          else
-            base_config
-          end
-
-    cfg = cfg.plugins[plug] if plug && cfg.plugins
-    cfg
-  end
-
-  # The configuration file to read. This should not be used by clients.
-  attr_writer :load_config #:nodoc:
-
-  # The base config file. This should not be used by clients.
-  attr_accessor :base_config #:nodoc:
-
-  def initialize #:nodoc:
-    @load_config = :default
-  end
-
-  # Create the package.
-  def pack
-    timestamp # Force the timestamp to be set now.
-    prepare_work_area
-    save_release_hashref
-    fetch_bundler
-    install_vendor_bundle
-    restore_modified_files
-    build_final_tarball
-  end
-
-  # Set or return the bundle cache. The bundle cache is a compressed tarball of
-  # <tt>vendor/bundle</tt> in the working path.
-  #
-  # If it exists, it will be extracted into <tt>vendor/bundle</tt> before
-  # <tt>bundle install --deployment</tt> is run, and it will be created after
-  # the bundle has been installed. In this way, bundle installation works
-  # almost the same way as Capistrano’s shared bundle concept as long as the
-  # path to the bundle_cache has been set to a stable location.
-  #
-  # On Semaphore CI, this should be created relative to
-  # <tt>$SEMAPHORE_CACHE</tt>.
-  #
-  #   cartage pack --bundle-cache $SEMAPHORE_CACHE
-  def bundle_cache(location = nil)
-    if location || !defined?(@bundle_cache)
-      @bundle_cache = Pathname(location || tmp_path).
-        join('vendor-bundle.tar.bz2').expand_path
+  # The cartage configuration object, implemented as a recursive OpenStruct.
+  # This can return just the subset of configuration for a command or plug-in
+  # by providing the +for_plugin+ or +for_command+ parameters.
+  def config(for_plugin: nil, for_command: nil)
+    if for_plugin && for_command
+      fail ArgumentError, 'Cannot get config for plug-in and command together'
+    elsif for_plugin
+      @config.dig(:plugins, for_plugin.to_sym) || OpenStruct.new
+    elsif for_command
+      @config.dig(:commands, for_command.to_sym) || OpenStruct.new
+    else
+      @config
     end
-    @bundle_cache
   end
 
-  # Return the release hashref. If the optional +save_to+ parameter is
-  # provided, the release hashref will be written to the specified file.
-  def release_hashref(save_to: nil)
+  # The config file. This should not be used by clients.
+  def config=(cfg) # :nodoc:
+    fail ArgumentError, 'No config provided' unless cfg
+    @plugins = Plugins.new
+    @config = cfg
+    resolve_config!
+  end
+
+  # The release metadata that will be written for the package.
+  def release_metadata
+    @release_metadata ||= {
+      package: {
+        name: name,
+        repo: {
+          type: 'git', # Hardcoded until we have other support
+          url: repo_url
+        },
+        hashref: release_hashref,
+        timestamp: timestamp
+      }
+    }
+  end
+
+  # Return the release hashref.
+  def release_hashref
     @release_hashref ||= %x(git rev-parse HEAD).chomp
-    File.open(save_to, 'w') { |f| f.write @release_hashref } if save_to
-    @release_hashref
   end
 
   # The repository URL.
   def repo_url
     unless defined? @repo_url
-      origin = %x(git remote show -n origin)
-      match = origin.match(%r{\n\s+Fetch URL: (?<fetch>[^\n]+)})
-      @repo_url = match[:fetch]
+      @repo_url = %x(git remote show -n origin).
+        match(/\n\s+Fetch URL: (?<fetch>[^\n]+)/)[:fetch]
     end
     @repo_url
   end
 
-  # The path to the resulting package.
-  def final_tarball
-    @final_tarball ||= Pathname("#{final_name}.tar.bz2")
+  # The temporary path.
+  def tmp_path
+    @tmp_path ||= root_path.join('tmp')
   end
 
-  # The path to the resulting release_hashref.
-  def final_release_hashref
-    @final_release_hashref ||=
-      Pathname("#{final_name}-release-hashref.txt")
+  # The working path for the job, in #tmp_path.
+  def work_path
+    @work_path ||= tmp_path.join(name)
   end
 
-  # A utility method for Cartage plug-ins to display a message only if verbose
-  # is on. Unless the command implemented by the plug-in is output only, this
-  # should be used.
+  # The final name
+  def final_name
+    @final_name ||= tmp_path.join("#{name}-#{timestamp}")
+  end
+
+  # The path to the resulting release-metadata.json file.
+  def final_release_metadata_json
+    @final_release_metadata_json ||= Pathname("#{final_name}-release-metadata.json")
+  end
+
+  # A utility method for Cartage plug-ins to display a +message+ only if
+  # verbose is on. Unless the command implemented by the plug-in is output
+  # only, this should be used.
   def display(message)
     __display(message)
   end
 
-  private
-  def resolve_config!(*with_plugins)
-    return unless @load_config
-    @base_config = Cartage::Config.load(@load_config)
+  # A utility method for Cartage plug-ins to run a +command+ in the shell. Uses
+  # IO.popen.
+  def run(command)
+    display command.join(' ')
 
-    cfg = config
-    maybe_assign :target, cfg.target
-    maybe_assign :name, cfg.name
-    maybe_assign :root_path, cfg.root_path
-    maybe_assign :timestamp, cfg.timestamp
-    maybe_assign :without_groups, cfg.without
+    IO.popen(command + [ err: %i(child out) ]) do |io|
+      __display(io.read(128), partial: true, verbose: true) until io.eof?
+    end
 
-    bundle_cache(cfg.bundle_cache) unless cfg.bundle_cache.nil? ||
-      cfg.bundle_cache.empty?
+    fail StandardError, "Error running '#{command.join(' ')}'" unless $?.success?
+  end
 
-    with_plugins.each do |name|
-      next unless respond_to? name
-      plugin = send(name)
+  # Returns the registered plug-ins, once configuration has been resolved.
+  def plugins
+    @plugins ||= Plugins.new
+  end
 
-      next unless plugin
-      plugin.send(:resolve_config!, config(for_plugin: name))
+  # Create the release package(s).
+  #
+  # Requests:
+  # *  +:vendor_dependencies+ (#vendor_dependencies, #path)
+  # *  +:pre_build_package+
+  # *  +:build_package+
+  # *  +:post_build_package+
+  def build_package
+    # Force timestamp to be initialized before anything else. This gives us a
+    # stable timestamp for the process.
+    timestamp
+    # Prepare the work area: copy files from root_path to work_path based on
+    # the resolved Manifest.txt.
+    prepare_work_area
+    # Anything that has been modified locally needs to be reset.
+    restore_modified_files
+    # Save both the final release metadata and the in-package release metadata.
+    save_release_metadata
+    # Vendor the dependencies for the package.
+    vendor_dependencies
+    # Request that supporting plug-ins build the package.
+    request_build_package
+  end
+
+  # Returns the flag to use with +tar+ given the value of +compression+.
+  def tar_compression_flag
+    case compression
+    when :bzip2, 'bzip2', nil
+      'j'
+    when :gzip, 'gzip'
+      'z'
+    when :none, 'none'
+      ''
     end
   end
 
+  # Returns the extension to use with +tar+ given the value of +compression+.
+  def tar_compression_extension
+    case compression
+    when :bzip2, 'bzip2', nil
+      '.bz2'
+    when :gzip, 'gzip'
+      '.gz'
+    when :none, 'none'
+      ''
+    end
+  end
+
+  private
+
+  attr_writer :release_hashref
+
+  def resolve_config!
+    fail 'No configuration' unless config
+
+    Cartage::Plugin.load_for(singleton_class)
+
+    self.disable_dependency_cache = config.disable_dependency_cache
+    self.quiet = config.quiet
+    self.verbose = config.verbose
+
+    maybe_assign :name, config.name
+    maybe_assign :target, config.target
+    maybe_assign :root_path, config.root_path
+    maybe_assign :timestamp, config.timestamp
+    maybe_assign :dependency_cache_path, config.dependency_cache_path
+    maybe_assign :release_hashref, config.release_hashref
+
+    Cartage::Plugin.each do |name|
+      next unless respond_to?(name)
+      plugin = send(name) or next
+      plugin.send(:resolve_config!, config(for_plugin: name))
+
+      plugins.add plugin
+    end
+
+    plugins.freeze
+  end
+
   def maybe_assign(name, value)
-    return if value.nil? || value.empty? ||
-      instance_variable_defined?(:"@#{name}")
+    return if value.nil? || (value.respond_to?(:empty?) && value.empty?) ||
+        instance_variable_defined?(:"@#{name}")
     send(:"#{name}=", value)
   end
 
-  def __display(message, partial: false, verbose: verbose())
+  def __display(message, partial: false, verbose: self.verbose)
     return unless verbose && !quiet
 
     if partial
@@ -242,25 +345,20 @@ class Cartage
     end
   end
 
-  def run(command)
-    display command.join(' ')
-
-    IO.popen(command + [ err: [ :child, :out ] ]) do |io|
-      __display(io.read(128), partial: true, verbose: true) until io.eof?
-    end
-
-    unless $?.success?
-      raise StandardError, "Error running '#{command.join(' ')}'"
-    end
+  def reset_computed_values
+    instance_variable_set(:@tmp_path, nil)
+    instance_variable_set(:@final_name, nil)
+    instance_variable_set(:@final_release_metadata_json, nil)
+    instance_variable_set(:@release_metadata, nil)
+    instance_variable_set(:@work_path, nil)
+    self.dependency_cache_path = dependency_cache_path
   end
 
   def prepare_work_area
-    display "Preparing cartage work area..."
+    display 'Preparing cartage work area...'
 
     work_path.rmtree if work_path.exist?
     work_path.mkpath
-
-    xf_status = cf_status = nil
 
     manifest.resolve(root_path) do |file_list|
       tar_cf_cmd = [
@@ -276,74 +374,29 @@ class Cartage
           xf.write cf.read
         end
 
-        unless $?.success?
-          raise StandardError, "Error running #{tar_xf_cmd.join(' ')}"
-        end
+        fail StandardError, "Error running #{tar_xf_cmd.join(' ')}" unless $?.success?
       end
 
-      unless $?.success?
-        raise StandardError, "Error running #{tar_cf_cmd.join(' ')}"
-      end
+      fail StandardError, "Error running #{tar_cf_cmd.join(' ')}" unless $?.success?
     end
   end
 
-  def save_release_hashref
-    display 'Saving release hashref...'
-    release_hashref save_to: work_path.join('release_hashref')
-    release_hashref save_to: final_release_hashref
-  end
-
-  def extract_bundle_cache
-    run %W(tar xfj #{bundle_cache} -C #{work_path}) if bundle_cache.exist?
-  end
-
-  def create_bundle_cache
-    run %W(tar cfj #{bundle_cache} -C #{work_path} vendor/bundle)
-  end
-
-  def install_vendor_bundle
-    extract_bundle_cache
-
-    Bundler.with_clean_env do
-      Dir.chdir(work_path) do
-        run %w(bundle install --jobs=4 --deployment --clean --without) +
-          without_groups
-      end
-    end
-
-    create_bundle_cache
+  def save_release_metadata
+    display 'Saving release metadata...'
+    json = JSON.generate(release_metadata)
+    work_path.join('release-metadata.json').write(json)
+    final_release_metadata_json.write(json)
   end
 
   def restore_modified_files
-    %x(git status -s).split($/).map(&:split).map(&:last).each { |file|
-      restore_modified_file file
-    }
-  end
-
-  def fetch_bundler
-    Dir.chdir(work_path) do
-      run %w(gem fetch bundler)
-    end
-  end
-
-  def build_final_tarball
-    run %W(tar cfj #{final_tarball} -C #{tmp_path} #{name})
-  end
-
-  def work_path
-    @work_path ||= tmp_path.join(name)
-  end
-
-  def clean
-    [ work_path ] + final
-  end
-
-  def final
-    [ final_tarball, final_release_hashref ]
-  end
-
-  def parent
-    @parent ||= root_path.parent
+    %x(git status -s).
+      split($/).
+      map(&:split).
+      select { |s, _f| s !~ /\?/ }.
+      map(&:last).
+      each { |file|
+        restore_modified_file file
+      }
   end
 
   def restore_modified_file(filename)
@@ -354,175 +407,52 @@ class Cartage
     IO.popen(command) do |show|
       work_path.join(filename).open('w') { |f|
         f.puts show.read
-        f.puts timestamp
       }
     end
   end
 
-  def tmp_path
-    @tmp_path ||= root_path.join('tmp')
+  def vendor_dependencies
+    extract_dependency_cache
+
+    plugins.request(:vendor_dependencies)
+
+    create_dependency_cache(
+      plugins.request_map(:vendor_dependencies, :path).compact.flatten
+    )
   end
 
-  def final_name
-    @final_name ||= tmp_path.join("#{name}-#{timestamp}")
+  def extract_dependency_cache
+    return if disable_dependency_cache || !dependency_cache.exist?
+    run %W(tar xf#{tar_compression_flag} #{dependency_cache} -C #{work_path})
   end
 
-  class << self
-    private
-
-    def lazy_accessor(sym, default: nil, setter: nil, &block)
-      ivar = :"@#{sym}"
-      wsym = :"#{sym}="
-      dsym = :"default_#{sym}"
-
-      if default.nil? && block.nil?
-        raise ArgumentError, "No default provided."
-      end
-
-      if setter && !setter.respond_to?(:call)
-        raise ArgumentError, "setter must be callable"
-      end
-
-      setter ||= ->(v) { v }
-
-      dblk = if default.respond_to?(:call)
-               default
-             elsif default.nil?
-               block
-             else
-               -> { default }
-             end
-
-      define_method(sym) do
-        instance_variable_get(ivar) || send(dsym)
-      end
-
-      define_method(wsym) do |value|
-        instance_variable_set(ivar, setter.call(value || send(dsym)))
-      end
-
-      define_method(dsym, &dblk)
-    end
+  def create_dependency_cache(paths = [])
+    return if disable_dependency_cache || paths.empty?
+    run [
+      'tar',
+      "cf#{tar_compression_flag}",
+      dependency_cache,
+      '-C',
+      work_path,
+      *paths
+    ].map(&:to_s)
   end
 
-  lazy_accessor :name, default: -> { File.basename(repo_url, '.git') }
-  lazy_accessor :root_path, setter: ->(v) { Pathname(v).expand_path },
-    default: -> { Pathname(%x(git rev-parse --show-cdup).chomp).expand_path }
-  lazy_accessor :target, setter: ->(v) { Pathname(v) },
-    default: -> { Pathname('tmp') }
-  lazy_accessor :timestamp, default: -> {
-    Time.now.utc.strftime("%Y%m%d%H%M%S")
-  }
-  lazy_accessor :without_groups, setter: ->(v) { Array(v) },
-    default: -> { %w(development test) }
-  lazy_accessor :base_config, default: -> { OpenStruct.new }
-end
-
-class << Cartage
-  # Run the Cartage command-line program.
-  def run(args) #:nodoc:
-    require_relative 'cartage/plugin'
-    Cartage::Plugin.load
-    Cartage::Plugin.decorate(Cartage)
-
-    cartage = Cartage.new
-
-    cli = CmdParse::CommandParser.new(handle_exceptions: true)
-    cli.main_options.program_name = 'cartage'
-    cli.main_options.version = Cartage::VERSION.split(/\./)
-    cli.main_options.banner = 'Manage releaseable packages.'
-
-    cli.global_options do |opts|
-      # opts.on('--[no-]quiet', 'Silence normal command output.') { |q|
-      #   cartage.quiet = !!q
-      # }
-      opts.on('--[no-]verbose', 'Show verbose output.') { |v|
-        cartage.verbose = !!v
-      }
-      opts.on(
-        '-E', '--environment [ENVIRONMENT]', <<-desc
-Set the environment to be used when necessary. If an environment name is not
-provided, it will check the values of $RAILS_ENV and RACK_ENV. If neither is
-set, this option is ignored.
-        desc
-      ) { |e| cartage.environment = e || ENV['RAILS_ENV'] || ENV['RACK_ENV'] }
-      opts.on(
-        '-C', '--[no-]config-file load_config', <<-desc
-Configure Cartage from a default configuration file or a specified
-configuration file.
-        desc
-      ) { |c| cartage.load_config = c }
-    end
-
-    cli.add_command(CmdParse::HelpCommand.new)
-    cli.add_command(CmdParse::VersionCommand.new)
-    cli.add_command(Cartage::PackCommand.new(cartage))
-
-    Cartage::Plugin.registered.each do |plugin|
-      if plugin.respond_to?(:commands)
-        Array(plugin.commands).flatten.each do |command|
-          registered_commands << command
-        end
-      end
-    end
-
-    registered_commands.uniq.each { |cmd| cli.add_command(cmd.new(cartage)) }
-    cli.parse
-    return 0
-  rescue Exception => exception
-    show_message_for exception, for_cartage: cartage
-    return exitstatus_for(exception)
+  def parent
+    @parent ||= root_path.parent
   end
 
-  # Set options common to anything that builds a package (that is, it calls
-  # Cartage#pack).
-  def common_build_options(opts, cartage)
-    opts.on(
-      '-t', '--target PATH',
-      'The build package will be placed in PATH, which defaults to \'tmp\'.'
-    ) { |t| cartage.target = t }
-    opts.on(
-      '-n', '--name NAME',
-      "Set the package name. Defaults to '#{cartage.default_name}'."
-    ) { |n| cartage.name = n }
-    opts.on(
-      '-r', '--root-path PATH',
-      'Set the root path. Defaults to the repository root.'
-    ) { |r| cartage.root_path = r }
-    opts.on(
-      '--timestamp TIMESTAMP',
-      'The timestamp used for the final package.'
-    ) { |t| cartage.timestamp = t }
-    opts.on(
-      '--bundle-cache PATH',
-      'Set the bundle cache path.'
-    ) { |b| cartage.bundle_cache(b) }
-    opts.on(
-      '--without GROUP1,GROUP2', Array,
-      'Set the groups to be excluded from bundle installation.',
-    ) { |w| cartage.without_environments = w }
+  def realize!
+    repo_url
+    root_path
+    release_hashref
+    timestamp
   end
 
-  private
-  def registered_commands
-    @registered_commands ||= []
-  end
-
-  def exitstatus_for(exception)
-    if exception.respond_to? :exitstatus
-      exception.exitstatus
-    else
-      2
-    end
-  end
-
-  def show_message_for(exception, for_cartage: nil)
-    unless exception.kind_of?(Cartage::QuietError)
-      $stderr.puts "Error:\n    " + exception.message
-      if for_cartage && for_cartage.verbose
-        $stderr.puts exception.backtrace.join("\n")
-      end
-    end
+  def request_build_package
+    plugins.request(:pre_build_package)
+    plugins.request(:build_package)
+    plugins.request(:post_build_package)
   end
 end
 

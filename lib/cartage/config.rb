@@ -1,36 +1,70 @@
+# frozen_string_literal: true
+
+begin
+  require 'psych'
+rescue LoadError
+  nil # This has been intentionally suppressed.
+end
 require 'ostruct'
 require 'pathname'
+require 'erb'
+require 'yaml'
 
 class Cartage
   # The Cartage configuration structure. The supported Cartage-wide
   # configuration fields are:
   #
-  # +target+:: The target where the final Cartage package will be created. Sets
-  #            Cartage#target. Equivalent to <tt>--target</tt>.
-  # +name+:: The name of the package to create. Sets Cartage#name. Equivalent
-  #          to <tt>--name</tt>.
-  # +root_path+:: The root path of the application. Sets Cartage#root_path.
-  #               Equivalent to <tt>--root-path</tt>.
-  # +timestamp+:: The timestamp for the final package. Sets Cartage#timestamp.
-  #               Equivalent to <tt>--timestamp</tt>.
-  # +bundle_cache+:: The bundle cache. Sets Cartage#bundle_cache. Equivalent to
-  #                  <tt>--bundle-cache</tt>.
-  # +without+:: Groups to exclude from bundle installation. Sets
-  #             Cartage#without_groups. Equivalent to <tt>--without</tt>.
-  #             This value should be provided as an array.
-  # +plugins+:: A dictionary for plug-in configuration groups. See below for
-  #             more information.
+  # +name+:: The name of the application. Sets Cartage#name. Equivalent to
+  #          <tt>--name</tt>. Optional, defaults to the basename of the origin
+  #          repo URL. Overridden with <tt>cartage --name NAME</tt>.
+  # +target+:: The target path for the Cartage package. Optional, defaults to
+  #            <tt>./tmp</tt>. Overridden with <tt>cartage --target PATH</tt>.
+  # +root_path+:: The root path of the application. Optional, defaults to the
+  #               top of the repository (<tt>git rev-parse --show-cdup</tt>).
+  #               Overridden with <tt>cartage --root-path ROOT_PATH</tt>.
+  # +timestamp+:: Equivalent to <tt>--timestamp</tt>. The timestamp for the
+  #               final package (which is
+  #               <tt><em>name</em>-<em>timestamp</em></tt>). Optional,
+  #               defaults to the current time in UTC. Overridden with
+  #               <tt>cartage --timestamp TIMESTAMP</tt>. This value is *not*
+  #               validated to be a time value when supplied.
+  # +compression+:: The type of compression to be used. Optional, defaults to
+  #                 'bzip2'. Must be one of 'bzip2', 'gzip', or 'none'.
+  #                 Overridden with <tt>cartage --compression TYPE</tt>.
   #
-  # Cartage configuration is not typically partitioned by an environment label,
-  # but can be. See the examples below for details.
+  #                 This affects the compression and filenames of both the
+  #                 final package and the dependency cache.
+  # +quiet+:: Silence normal output. Optional, defaults false. Overridden with
+  #           <tt>cartage --quiet</tt>.
+  # +verbose+:: Show verbose output. Optional, defaults false. Overridden with
+  #             <tt>cartage --verbose</tt>.
+  # +disable_dependency_cache+:: Disable dependency caching. Optional, defaults
+  #                              false.
+  # +dependency_cache_path+:: The path where the dependency cache will be
+  #                           written (<tt>dependency-cache.tar.*</tt>) for use
+  #                           in successive builds. Optional, defaults to
+  #                           <tt>./tmp</tt>. Overridden with <tt>cartage
+  #                           --dependency-cache-path PATH</tt>.
   #
-  # == Plug-Ins
+  #                           On a CI system, this should be written somewhere
+  #                           that the CI system uses for build caching.
   #
-  # Plug-ins also keep configuration in the Cartage configuration structure,
-  # but as dictionary (hash) structures under the +plugins+ field. Each plug-in
-  # has its own key based on its name, so that the Manifest plug-in (if it had
-  # storable configuration values) would keep its configuration in a +manifest+
-  # key. See the examples below for details.
+  # == Commands and Plug-Ins
+  #
+  # Commands and plug-ins have access to configuration dictinoaries in the main
+  # Cartage configuration structure. Command configuration dictionaries are
+  # found under +commands+ and plug-in configuration dictionaries are found
+  # under +plugins+.
+  #
+  # +commands+:: This dictionary is for command-specific configuration. The
+  #              keys are freeform and should be based on the *primary* name of
+  #              the command (so the <tt>cartage pack</tt> command should use
+  #              the key <tt>pack</tt>.)
+  # +plugins+:: This dictionary is for plug-in-specific configuration. See each
+  #             plug-in for configuration options. The keys to the plug-ins are
+  #             based on the plug-in name. cartage-bundler is available as
+  #             Cartage::Bundler; the transformed plug-in name will be
+  #             <tt>bundler</tt>.
   #
   # == Loading Configuration
   #
@@ -39,77 +73,35 @@ class Cartage
   # filename is not given, Cartage will look for the configuration in the
   # following locations:
   #
-  # * config/cartage.yml
+  # * ./config/cartage.yml
+  # * ./.cartage.yml
   # * ./cartage.yml
-  # * $HOME/.config/cartage.yml
-  # * $HOME/.cartage.yml
-  # * /etc/cartage.yml
   #
   # The contents of the configuration file are evaluated through ERB and then
-  # parsed from YAML and converted to nested OpenStruct objects. The basic
-  # environment example below would look like:
-  #
-  #   #<OpenStruct development=
-  #     #<OpenStruct without=["test", "development", "assets"]>
-  #   >
-  #
-  # == Examples
-  #
-  # Basic Cartage configuration:
-  #
-  #   ---
-  #   without:
-  #     - test
-  #     - development
-  #     - assets
-  #
-  # With an environment set:
-  #
-  #   ---
-  #   development:
-  #     without:
-  #       - test
-  #       - development
-  #       - assets
-  #
-  # With the Manifest plug-in (note: the Manifest plug-in does *not* have
-  # configurable options; this is for example purposes only).
-  #
-  #   ---
-  #   without:
-  #     - test
-  #     - development
-  #     - assets
-  #   manifest:
-  #     format: json
-  #
-  # With the Manifest plug-in and an environment:
-  #
-  #   ---
-  #   development:
-  #     without:
-  #       - test
-  #       - development
-  #       - assets
-  #     manifest:
-  #       format: json
+  # parsed from YAML and converted to nested OpenStruct objects.
   class Config < OpenStruct
     #:stopdoc:
     DEFAULT_CONFIG_FILES = %w(
-    config/cartage.yml
-    ./cartage.yml
-    ~/.config/cartage.yml
-    ~/.cartage.yml
-    /etc/cartage.yml
-    )
+      ./config/cartage.yml
+      ./cartage.yml
+      ./.cartage.yml
+    ).each(&:freeze).freeze
     #:startdoc:
 
     class << self
-      # Load a Cartage configuration file.
+      # Load a Cartage configuration file as specified by +filename+. If
+      # +filename+ is the special value <tt>:default</tt>, project-specific
+      # configuration files will be located.
       def load(filename)
         config_file = resolve_config_file(filename)
-        config = YAML.load(ERB.new(config_file.read, nil, '%<>-').result)
-        new(ostructify(config))
+        config = ::YAML.load(ERB.new(config_file.read, nil, '%<>-').result)
+        new(config)
+      end
+
+      # Read the contents of +filename+ if and only if it exists. For use in
+      # ERB configuration of Cartage to read local or Ansible-created files.
+      def import(filename)
+        File.read(filename) if File.exist?(filename)
       end
 
       private
@@ -117,46 +109,36 @@ class Cartage
       def resolve_config_file(filename)
         return unless filename
 
-        files = if filename == :default
-                  DEFAULT_CONFIG_FILES
-                else
+        filename = nil if filename == :default
+
+        files = if filename
                   [ filename ]
+                else
+                  DEFAULT_CONFIG_FILES
                 end
 
-        file  = files.find { |f| Pathname(f).expand_path.exist? }
+        file = files.find { |f| Pathname(f).expand_path.exist? }
 
         if file
           Pathname(file).expand_path
+        elsif filename
+          fail ArgumentError, "Configuration file #{filename} does not exist."
         else
-          message = if filename
-                      "Configuration file #{filename} does not exist."
-                    else
-                      "No default configuration file found."
-                    end
-
-          raise ArgumentError, message
+          StringIO.new('{}')
         end
       end
 
-      def ostructify(hash)
-        hash = hash.dup
-        hash.keys.each do |k|
-          hash[k.to_sym] = ostructify_recursively(hash.delete(k))
-        end
-        OpenStruct.new(hash)
-      end
-
-      def ostructify_recursively(object)
+      def ostructify(object)
         case object
         when ::Array
-          object.map! { |i| ostructify_recursively(i) }
-        when ::OpenStruct
-          object = ostructify(object.to_h)
-        when ::Hash
-          object = ostructify(object)
+          object.map { |e| ostructify(e) }
+        when ::OpenStruct, ::Hash
+          OpenStruct.new({}.tap { |h|
+            object.each_pair { |k, v| h[k] = ostructify(v) }
+          })
+        else
+          object
         end
-
-        object
       end
     end
 
@@ -170,24 +152,35 @@ class Cartage
       to_h.to_yaml
     end
 
-    private
-    def hashify(ostruct)
-      {}.tap { |hash|
-        ostruct.each_pair do |k, v|
-          hash[k.to_s] = hashify_recursively(v)
-        end
-      }
+    def initialize(hash = nil) # :nodoc:
+      super(hash && self.class.send(:ostructify, hash))
+      self.plugins ||= OpenStruct.new
+      self.commands ||= OpenStruct.new
     end
 
-    def hashify_recursively(object)
+    private
+
+    def hashify(object, convert_keys: :to_s)
       case object
       when ::Array
-        object.map! { |i| hashify_recursively(i) }
+        object.map { |e| hashify(e) }
       when ::OpenStruct, ::Hash
-        object = hashify(object)
+        {}.tap { |h|
+          object.each_pair { |k, v|
+            k = case convert_keys
+                when :to_s
+                  k.to_s
+                when :to_sym
+                  k.to_sym
+                else
+                  k
+                end
+            h[k.to_s] = hashify(v)
+          }
+        }
+      else
+        object
       end
-
-      object
     end
   end
 end
