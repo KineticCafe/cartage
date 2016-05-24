@@ -1,2 +1,2 @@
-gem "minitest"
-require "minitest/autorun"
+gem 'minitest'
+require 'minitest/autorun'
