@@ -1,27 +1,28 @@
+# frozen_string_literal: true
+
 require 'tempfile'
+
 # Manage and use the package manifest ('Manifest.txt') and the ignore file
 # ('.cartignore').
 class Cartage::Manifest < Cartage::Plugin
   # This exception is raised if the package manifest is missing.
-  MissingError = Class.new(StandardError) do
-    def message
+  class MissingError < StandardError
+    def message # :nodoc:
       <<-exception
 Cartage cannot create a package without a Manifest.txt file. You may generate
 or update the Manifest.txt file with the following command:
+
+    cartage manifest generate
 
       exception
     end
   end
 
-  DIFF     = if system('gdiff', __FILE__, __FILE__) #:nodoc:
-               'gdiff'
-             else
-               'diff'
-             end
-
-  def initialize(cartage) #:nodoc:
-    @cartage = cartage
-  end
+  DIFF = if system('gdiff', __FILE__, __FILE__) #:nodoc:
+           'gdiff'
+         else
+           'diff'
+         end
 
   # Resolve the Manifest to something that can be used by <tt>tar -T</tt>. The
   # manifest should be relative to the files in the repository, as reported
@@ -35,14 +36,17 @@ or update the Manifest.txt file with the following command:
   # front of every line in the Manifest.
   #
   # If +path+ is not provided, Dir.pwd is used.
-  def resolve(path = nil, command: nil) # :yields: resolved manifest filename
-    raise MissingError unless manifest_file.exist?
+  #
+  # A block is required and is provided the +resolved_path+.
+  def resolve(path = nil) # :yields: resolved_path
+    fail MissingError unless manifest_file.exist?
+    fail ArgumentError, 'A block is required.' unless block_given?
 
     data = strip_comments_and_empty_lines(manifest_file.readlines)
-    raise "Manifest.txt is empty." if data.empty?
+    fail 'Manifest.txt is empty.' if data.empty?
 
     path = Pathname(path || Dir.pwd).expand_path.basename
-    tmpfile = Tempfile.new('Manifest')
+    tmpfile = Tempfile.new('Manifest.')
 
     tmpfile.puts prune(data, with_slugignore: true).map { |line|
       path.join(line).to_s
@@ -65,20 +69,29 @@ or update the Manifest.txt file with the following command:
 
   # Checks Manifest.txt
   def check
-    raise MissingError unless manifest_file.exist?
+    fail MissingError unless manifest_file.exist?
     tmp = create_file_list('Manifest.tmp')
-    system(DIFF, '-du', manifest_file.basename.to_s, tmp.to_s)
+
+    args = [ DIFF, '-du', manifest_file.basename.to_s, tmp.to_s ]
+
+    if cartage.quiet
+      %x(#{(args << '-q').join(' ')})
+    else
+      system(*args)
+    end
+
     $?.success?
   ensure
     tmp.unlink if tmp
   end
 
-  # Installs the default .cartignore file.
+  # Installs the default .cartignore file. Will either +overwrite+ or +merge+
+  # based on the provided +mode+.
   def install_default_ignore(mode: nil)
-    mode = mode.to_s.downcase.strip
     save = mode || !ignore_file.exist?
 
-    if mode == :merge
+    if mode == 'merge'
+      cartage.display('Merging .cartignore...')
       data = strip_comments_and_empty_lines(ignore_file.readlines)
 
       if data.empty?
@@ -87,11 +100,14 @@ or update the Manifest.txt file with the following command:
         data += strip_comments_and_empty_lines(DEFAULT_IGNORE.split($/))
         data = data.uniq.join("\n")
       end
-    else
+    elsif save
+      cartage.display('Creating .cartignore...')
       data = DEFAULT_IGNORE
+    else
+      cartage.display('.cartignore already exists, skipping...')
     end
 
-    ignore_file.open('w') { |f| f.puts data } if save
+    ignore_file.write(data) if save
   end
 
   private
@@ -109,11 +125,8 @@ or update the Manifest.txt file with the following command:
   end
 
   def create_file_list(filename)
-    Pathname(filename).tap { |file|
-      file.open('w') { |f|
-        f.puts prune(%x(git ls-files).split.map(&:chomp)).sort.uniq.join("\n")
-      }
-    }
+    files = prune(%x(git ls-files).split.map(&:chomp)).sort.uniq.join("\n")
+    Pathname(filename).tap { |f| f.write("#{files}\n") }
   end
 
   def ignore_patterns(with_slugignore: false)
@@ -128,10 +141,10 @@ or update the Manifest.txt file with the following command:
     pats = strip_comments_and_empty_lines(pats)
 
     pats.map { |pat|
-      if pat =~ %r{/\z}
-        Regexp.new(%r{\A#{pat}})
-      elsif pat =~ %r{\A/[^*?]+\z}
+      if pat =~ %r{\A/[^*?]+\z}
         Regexp.new(%r{\A#{pat.sub(%r{\A/}, '')}/})
+      elsif pat =~ %r{/\z}
+        Regexp.new(/\A#{pat}/)
       else
         pat
       end
@@ -154,12 +167,13 @@ or update the Manifest.txt file with the following command:
     files.reject { |file| prune?(file, exclusions) }
   end
 
-  def prune?(file, exclusions = ignore_patterns())
+  def prune?(file, exclusions = ignore_patterns)
     exclusions.any? do |pat|
       case pat
       when /[*?]/
-        File.fnmatch?(pat, file, File::FNM_PATHNAME | File::FNM_EXTGLOB |
-                      File::FNM_DOTMATCH)
+        File.fnmatch?(
+          pat, file, File::FNM_PATHNAME | File::FNM_EXTGLOB | File::FNM_DOTMATCH
+        )
       when Regexp
         file =~ pat
       else
@@ -220,5 +234,3 @@ tmp/
 vendor/bundle/
   EOM
 end
-
-require_relative 'manifest/commands'

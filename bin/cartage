@@ -3,6 +3,6 @@
 git_path = File.expand_path('../../.git', __FILE__)
 $:.unshift(File.expand_path('../../lib', __FILE__)) if File.exist?(git_path)
 
-require 'cartage/command'
+require 'cartage/cli'
 
-exit Cartage.run(ARGV)
+exit Cartage::CLI.run(ARGV)

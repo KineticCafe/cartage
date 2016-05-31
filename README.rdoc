@@ -7,18 +7,20 @@ continuous integration :: {<img src="https://travis-ci.org/KineticCafe/cartage.s
 
 == Description
 
-Cartage provides a plug-in based tool to reliably create a package for a
-Bundler-based Ruby application that can be used in deployment with a
-configuration tool like Ansible, Chef, Puppet, or Salt. The package is created
-with its dependencies bundled in +vendor/bundle+, so it can be deployed in
-environments with strict access control rules and without requiring development
-tool access.
+Cartage provides a repeatable means to create a package for a server-side
+application that can be used in deployment with a configuration tool like
+Ansible, Chef, Puppet, or Salt. The package is created with vendored
+dependencies so that it can be deployed in environments with strict access
+control rules and without requiring development tool presence on the target
+server(s).
 
-Cartage has learned its tricks from Heroku, Capistrano, and Hoe. From Hoe, it
-learned to keep a manifest to control what is packaged (as well as its plug-in
-system). From Heroku, it learned to keep a simple ignore file. From Capistrano,
-it learned to mark the Git hashref as a file in its built package, and to
-timestamp the packages.
+=== Overview
+
+Cartage has learned its tricks from Heroku’s build process, Capistrano
+deployments, and Hoe. From Hoe, it learned to keep a manifest to control what
+is packaged (as well as its plug-in system). From Heroku, it learned to keep a
+simple ignore file. From Capistrano, it learned to mark the Git hashref as a
+file in its built package, and to timestamp the packages.
 
 Cartage follows a relatively simple set of steps when creating a package:
 
@@ -29,117 +31,61 @@ Cartage follows a relatively simple set of steps when creating a package:
     list. To override the use of this exclusion list, an empty +.cartignore+
     file must be present.
 
-2.  The Git hashref is written to the work area (as +release_hashref+) and to
+2.  The Git hashref is written to the work area (as +release_manifest.json+) and to
     the package staging area.
 
 3.  Files that have been modified are restored to pristine condition in the
-    work area. The source files are not touched. (This ensures that
+    work area. The source files are not touched. (This ensures that a Rails
     +config/database.yml+, for example, will not be the version used by a
     continuous integration system.)
 
-4.  Bundler is fetched into the work area, and the bundle is installed into the
-    work area’s +vendor/bundle+ without the +development+ and +test+
-    environments. If a bundle cache is kept (by default, one is), the resulting
-    +vendor/bundle+ will be put into a bundle cache so that future bundle
-    installs are faster.
+4.  Dependencies are vendored using installed and enabled plug-ins. Vendored
+    dependencies will be cached for speeding up future installations.
 
 5.  A timestamped tarball is created from the contents of the work area. It can
     then be copied to a more permanent or accessible location.
 
 Cartage is extremely opinionated about its tools and environment:
 
-* The packages are created with +tar+ and +bzip2+ using <tt>tar cfj</tt>.
-* Cartage only understands +git+, which is used for creating
-  <tt>release_hashref</tt>s, +Manifest.txt+ creation and comparison, and even
-  default application name detection (from the name of the origin remote).
+*   The packages are created with +tar+ and +bzip2+ using <tt>tar cfj</tt>.
+    (The compression method is configurable, but defaults to +bzip2+.)
+*   Cartage only understands +git+, which is used for creating
+    <tt>release_manifest.json</tt>s, +Manifest.txt+ creation and comparison, and even
+    default application name detection (from the name of the origin remote).
 
 == Synopsis
 
     # Build a package from the current machine, using the Manifest.txt.
-    cartage pack
+    cartage pack # or cartage build
 
     # Create or update a Manifest.txt from the current repository.
-    cartage manifest
+    cartage manifest generate # or cartage manifest update
     # Check the current Manifest against the files that should be there.
-    cartage check
+    cartage manifest check
+
+    # Show the files that will be included in the package.
+    cartage manifest show
 
     # Create a .cartignore file for use.
-    cartage install-ignore
+    cartage manifest cartignore
     # Overwrite the current .cartignore with the default.
-    cartage install-ignore --force
+    cartage manifest cartignore --force # or --mode overwrite
     # Merge the current .cartignore with the default. Merging automatically
     # removes any comments.
-    cartage install-ignore --merge
+    cartage manifest cartignore --merge # or --mode merge
 
 == Install
 
 Add cartage to your Gemfile:
 
-    gem 'cartage', '~> 1.0', groups: [ :development, :test ]
+    gem 'cartage', '~> 2.0', groups: [ :development, :test ]
 
 Or manually install:
 
-  % gem install cartage
+    % gem install cartage
 
-== Cartage Plug-Ins
-
-Cartage is extensible by plug-ins. This version of the plug-in system provides
-one integration point, subcommands. Cartage is implemented with
-{cmdparse}[http://cmdparse.gettalong.org/], and plug-ins implement a class that
-performs the work (nested under the Cartage namespace) and one or more commands
-that execute on the work. Plug-in files are discovered immediately relative to
-the +cartage+ directory, and are registered on inheritance from
-Cartage::Plugin. This plug-in would be found in <tt>'cartage/info.rb'</tt>.
-Each plug-in will get a lazy-instantiation constructor added to Cartage itself
-that provides a reference to the owning Cartage instance.
-
-Below is an example of a Cartage plug-in to provide a <tt>cartage info</tt>
-command. This command isn’t very useful, since most values used in Cartage
-packaging are lazily resolved, but it demonstrates how simple a plug-in can be.
-
-    require 'cartage/plugin'
-    require 'cartage/command'
-
-    # An instance of this will be created lazily by calling Cartage#info.
-    class Cartage::Info < Cartage::Plugin
-      # It does not matter what this method is. It’s just a public instance
-      # method used by the command.
-      def run
-        @cartage.instance_variables.sort.each { |ivar|
-          puts "#{ivar}: #{@cartage.instance_variable_get(ivar)}"
-        }
-      end
-
-      # This will create a CmdParse command that responds to 'info' and takes
-      # no subcommands. If the plug-in provides a number of features, it is
-      # recommended that subcommands be used.
-      class InfoCommand < Cartage::Command
-        # The Cartage::Command objects are initialized with the cartage
-        # instance. Set the command name with the string here.
-        def initialize(cartage)
-          super(cartage, 'info', takes_commands: false)
-          short_desc('Shows configuration information about Cartage.')
-        end
-
-        # This is run by Cartage::Command#execute to make the command happen.
-        # An exception should be thrown on failure, as return values do not
-        # affect the status code of the application.
-        def perform
-          @cartage.info.run
-        end
-      end
-
-      # This returns the command(s) created by this plug-in.
-      def self.commands
-        [ Cartage::Info::InfoCommand ]
-      end
-    end
-
-For a more comprehensive example, see the implementation of Manifest
-(<tt>lib/cartage/manifest.rb</tt>) and its commands
-(<tt>lib/cartage/manifest/commands.rb</tt>).
-
-Future releases of Cartage will offer additional ways to extend Cartage.
+Cartage should not be part of your production environment; its purpose is to
+*create* production-ready packages.
 
 == Alternate Projects
 
@@ -150,31 +96,36 @@ CentOS 6, SLES 12, and Fedora 20.
 Both Cartage and Pkgr provide isolated builds with all in-application
 dependencies included.
 
-Pkgr offers several advantages over Cartage:
+Pkgr offers some advantages over Cartage:
 
-* It supports more languages than just Ruby (suport for Go and Node.js are
-  confirmed and more are in progress). Cartage will probably have more language
-  support in the future, but it is not an immediate priority. For Ruby and
-  Node.js, the interpreters are included locally to the application.
+* It includes language interpreters local to the deployed application, as
+  appropriate.
 
-* It creates a distribution package, meaning that you can just use +apt-get+ to
-  install or upgrade your package.
+* It has built-in support for Ruby, Go, and Node.js.
 
-* It reuses Heroku buildpacks (this requires that your application behave a bit
-  more like a Heroku application, which may be a bit more 
+* It creates an OS distribution package, meaning that you can just use
+  +apt-get+ or +yum+ to install or upgrade your package.
+
+* It reuses Heroku buildpacks. This requires that your application behave like
+  a <del>Twelve Factor</del>Heroku application, including the use of STDOUT and
+  STDERR for various aspects. Pkgr has some tooling that reduces the negative
+  impact that this has for application configuration, but the changes are still
+  unavoidably present.
 
 Cartage offers advantages over Pkgr:
 
-* Cartage offers a plug-in based extension system. While the plug-in system is
-  currently limited to adding new +cartage+ commands, this is not its only
-  possible use. Existing plug-ins are +cartage-s3+ (upload the resulting
-  package to S3), +cartage-remote+ (build on a remote machine), and
-  +cartage-rack+ (provide a Rack application to read the +release_hashref+ over
-  an API call).
+* Cartage offers plug-in based extensions. Support for remote builds
+  (+cartage-remote+), uploads to S3 (+cartage-s3+), and bundler
+  (+cartage-bundler+) already exist and new plug-ins are not hard to add
+  (+cartage-npm+ is in development). 
+
+* Cartage offers more accessible information about *what* was built into the
+  release package. There is a Rack application (+cartage-rack+) that will
+  render the +release_manifest.json+ file over an API call.
 
 * Cartage makes it easier to integrate into a workflow translated from
   Capistrano, as it essentially replaces the source control checkout stage.
-  This process makes it really easy to integrate into an Ansible playbook (as
+  This process makes it easy to integrate into an Ansible playbook (as
   we have done at Kinetic Cafe).
 
 == Cartage Semantic Versioning
@@ -187,6 +138,10 @@ significant change:
 Additionally, the major version will generally be reserved for plug-in
 infrastructure changes.
 
-:include: Contributing.rdoc
+== Community and Contributing
 
-:include: Licence.rdoc
+Cartage welcomes your contributions as described in
+{Contributing.md}[https://github.com/KineticCafe/cartage/blob/master/Contributing.md].
+This project, like all Kinetic Cafe {open source
+projects}[https://github.com/KineticCafe], is under the Kinetic Cafe Open
+Source {Code of Conduct}[https://github.com/KineticCafe/code-of-conduct].
