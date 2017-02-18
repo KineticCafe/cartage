@@ -31,7 +31,7 @@ class Cartage
       # The version of the plug-in.
       def version
         if const_defined?(:VERSION, false)
-          VERSION
+          self::VERSION
         else
           Cartage::VERSION
         end
@@ -46,10 +46,13 @@ class Cartage
       # A utility method that will find all Cartage plug-ins and load them. A
       # Cartage plug-in is found in the Gems as <tt>cartage/plugins/*.rb</tt>
       # and descends from Cartage::Plugin.
-      def load #:nodoc:
+      def load(rescan: false) #:nodoc:
         @found ||= {}
         @loaded ||= {}
-        @files ||= Gem.find_files('cartage/plugins/*.rb')
+
+        if @files.nil? || rescan
+          @files = Gem.find_files('cartage/plugins/*.rb')
+        end
 
         @files.reverse_each do |path|
           name = File.basename(path, '.rb').to_sym

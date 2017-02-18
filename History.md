@@ -1,3 +1,23 @@
+### 2.1 / 2017-02-18
+
+*   Cartage 2.1 now knows how to load plug-ins relative to the project root
+    path. If you have a plug-in that you aren’t ready to release as a gem, just
+    put it in your project as `<ROOT_PATH>/lib/cartage/plugins/foo.rb`; Cartage
+    will find it automatically. This feature does not work with command
+    extensions.
+
+*   The hidden command, `cartage info plugins`, will now correctly report
+    plug-in versions.
+
+*   Cartage tries to restore files that were modified by a build system prior
+    to packaging. This would fail on files that were not part of the resulting
+    tarball (because they were in .cartignore). This has been fixed.
+
+*   A new utility function, Cartage#recursive_copy has been added to
+    recursively copy directories from disk into the work path. The interaction
+    of relative and absolute directories is subtle but documented on the method
+    itself.
+
 ### 2.0 / 2016-05-31
 
 *   Rewrite! Over the last year, a number of deficiencies have been found,

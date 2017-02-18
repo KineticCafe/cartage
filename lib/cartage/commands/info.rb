@@ -48,7 +48,7 @@ that just provide commands are not reported as plugins.
           puts <<-plugins
 Active Plug-ins:
 
-#{plugs.join("\n")}
+#{plugs.sort.join("\n")}
           plugins
         end
       end

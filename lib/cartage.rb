@@ -10,7 +10,7 @@ require 'cartage/config'
 ##
 # Cartage, a reliable package builder.
 class Cartage
-  VERSION = '2.0' #:nodoc:
+  VERSION = '2.1' #:nodoc:
 
   # Creates a new Cartage instance. If provided a Cartage::Config object in
   # +config+, sets the configuration and resolves it. If +config+ is not
@@ -298,14 +298,71 @@ class Cartage
     end
   end
 
+  # Recursively copy a provided +path+ to the #work_path, using a tar pipeline.
+  # The target location can be amended by the use of the +to+ parameter as a
+  # relative path to #work_path.
+  #
+  # If a relative +path+ is provided, it will be treated as relative to
+  # #root_path, and it will be used unmodified for writing to the target
+  # location. If an absolute path is provided, only the last part of the path
+  # will be used as the target name.
+  #
+  # An error will be raised if either +path+ or +to+ contains a parent-relative
+  # reference (<tt>../</tt>), or if the tar pipeline fails.
+  #
+  # === Examples
+  #
+  #   cartage.recursive_copy('public/assets')
+  #
+  # This will cause <tt><em>root_path</em>/public/assets</tt> to be copied into
+  # <tt><em>work_path</em>/public/assets</tt>.
+  #
+  #   cartage.recursive_copy('/tmp/public/assets')
+  #
+  # This will cause <tt>/tmp/public/assets</tt> to be copied into
+  # <tt><em>work_path</em>/assets</tt>.
+  #
+  #   cartage.recursive_copy('/tmp/public/assets', to: 'public')
+  #
+  # This will cause <tt>/tmp/public/assets</tt> to be copied into
+  # <tt><em>work_path</em>/public/assets</tt>.
+  def recursive_copy(path, to: nil)
+    path = Pathname(path)
+    to = Pathname(to) if to
+
+    if path.to_s =~ %r{\.\./} || (to && to.to_s =~ %r{\.\./})
+      fail StandardError, "Recursive copy parameters cannot contain '/../'"
+    end
+
+    if path.relative?
+      parent = root_path
+    else
+      parent, path = path.split
+    end
+
+    target = work_path
+    target /= to if to
+
+    tar_cf_cmd = [ 'tar', 'cf', '-', '-h', '-C', parent, path ].map(&:to_s)
+    tar_xf_cmd = [ 'tar', 'xf', '-', '-C', target ].map(&:to_s)
+
+    IO.popen(tar_cf_cmd) do |cf|
+      IO.popen(tar_xf_cmd, 'w') do |xf|
+        xf.write cf.read
+      end
+
+      fail StandardError, "Error running #{tar_xf_cmd.join(' ')}" unless $?.success?
+    end
+
+    fail StandardError, "Error running #{tar_cf_cmd.join(' ')}" unless $?.success?
+  end
+
   private
 
   attr_writer :release_hashref
 
   def resolve_config!
     fail 'No configuration' unless config
-
-    Cartage::Plugin.load_for(singleton_class)
 
     self.disable_dependency_cache = config.disable_dependency_cache
     self.quiet = config.quiet
@@ -317,6 +374,12 @@ class Cartage
     maybe_assign :timestamp, config.timestamp
     maybe_assign :dependency_cache_path, config.dependency_cache_path
     maybe_assign :release_hashref, config.release_hashref
+
+    lib = root_path.join('lib').to_s
+    $LOAD_PATH.unshift(lib) unless $LOAD_PATH.any? { |l| l == lib }
+    Cartage::Plugin.load(rescan: true)
+
+    Cartage::Plugin.load_for(singleton_class)
 
     Cartage::Plugin.each do |name|
       next unless respond_to?(name)
@@ -400,6 +463,8 @@ class Cartage
   end
 
   def restore_modified_file(filename)
+    return unless work_path.join(filename).exist?
+
     command = [
       'git', 'show', "#{release_hashref}:#{filename}"
     ]

@@ -14,6 +14,7 @@ Hoe.plugin :travis
 
 spec = Hoe.spec 'cartage' do
   developer('Austin Ziegler', 'aziegler@kineticcafe.com')
+  developer('Kinetic Cafe', 'dev@kineticcafe.com')
 
   self.history_file = 'History.md'
   self.readme_file = 'README.rdoc'
@@ -24,7 +25,7 @@ spec = Hoe.spec 'cartage' do
 
   extra_deps << ['gli', '~> 2.13']
 
-  extra_dev_deps << ['rake', '>= 10.0']
+  extra_dev_deps << ['rake', '>= 10.0', '< 12.0']
   extra_dev_deps << ['rdoc', '~> 4.2']
   extra_dev_deps << ['hoe-doofus', '~> 1.0']
   extra_dev_deps << ['hoe-gemspec2', '~> 1.1']
