@@ -8,7 +8,7 @@ source 'https://rubygems.org/'
 # Specify your gem's dependencies in cartage.gemspec
 gemspec
 
-group :local_development, :test do
+group :local_development do
   gem 'cartage-s3', path: '../cartage-s3'
   gem 'cartage-bundler', path: '../cartage-bundler'
   gem 'cartage-remote', path: '../cartage-remote'
