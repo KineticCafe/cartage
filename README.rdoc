@@ -3,7 +3,6 @@
 code :: https://github.com/KineticCafe/cartage/
 issues :: https://github.com/KineticCafe/cartage/issues
 docs :: http://www.rubydoc.info/github/KineticCafe/cartage/master
-continuous integration :: {<img src="https://travis-ci.org/KineticCafe/cartage.svg?branch=master" alt="Build Status" />}[https://travis-ci.org/KineticCafe/cartage]
 
 == Description
 
@@ -13,6 +12,11 @@ Ansible, Chef, Puppet, or Salt. The package is created with vendored
 dependencies so that it can be deployed in environments with strict access
 control rules and without requiring development tool presence on the target
 server(s).
+
+This repository will see minimal development moving forward given the move
+toward Docker builders and deploys; it is likely that the only thing that will
+eventually result from this repository is the new `cartage manifest` command
+that satisfies `cartage-rack`.
 
 === Overview
 
@@ -117,7 +121,7 @@ Cartage offers advantages over Pkgr:
 * Cartage offers plug-in based extensions. Support for remote builds
   (+cartage-remote+), uploads to S3 (+cartage-s3+), and bundler
   (+cartage-bundler+) already exist and new plug-ins are not hard to add
-  (+cartage-npm+ is in development). 
+  (+cartage-npm+ is in development).
 
 * Cartage offers more accessible information about *what* was built into the
   release package. There is a Rack application (+cartage-rack+) that will
