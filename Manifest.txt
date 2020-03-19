@@ -15,6 +15,7 @@ lib/cartage/cli.rb
 lib/cartage/commands/echo.rb
 lib/cartage/commands/info.rb
 lib/cartage/commands/manifest.rb
+lib/cartage/commands/metadata.rb
 lib/cartage/commands/pack.rb
 lib/cartage/config.rb
 lib/cartage/core.rb

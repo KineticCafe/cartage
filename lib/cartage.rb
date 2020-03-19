@@ -10,7 +10,7 @@ require 'cartage/config'
 ##
 # Cartage, a reliable package builder.
 class Cartage
-  VERSION = '2.1' #:nodoc:
+  VERSION = '2.2' #:nodoc:
 
   # Creates a new Cartage instance. If provided a Cartage::Config object in
   # +config+, sets the configuration and resolves it. If +config+ is not
@@ -274,6 +274,19 @@ class Cartage
     request_build_package
   end
 
+  # Just save the release metadata.
+  def save_release_metadata(local: false)
+    display 'Saving release metadata...'
+    json = JSON.generate(release_metadata)
+
+    if local
+      Pathname('.').join('release-metadata.json').write(json)
+    else
+      work_path.join('release-metadata.json').write(json)
+      final_release_metadata_json.write(json)
+    end
+  end
+
   # Returns the flag to use with +tar+ given the value of +compression+.
   def tar_compression_flag
     case compression
@@ -442,13 +455,6 @@ class Cartage
 
       fail StandardError, "Error running #{tar_cf_cmd.join(' ')}" unless $?.success?
     end
-  end
-
-  def save_release_metadata
-    display 'Saving release metadata...'
-    json = JSON.generate(release_metadata)
-    work_path.join('release-metadata.json').write(json)
-    final_release_metadata_json.write(json)
   end
 
   def restore_modified_files
