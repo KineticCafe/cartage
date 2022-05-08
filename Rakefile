@@ -18,10 +18,22 @@ spec = Hoe.spec 'cartage' do
 
   self.history_file = 'History.md'
   self.readme_file = 'README.rdoc'
+  self.post_install_message = <<-EOS
+This is the last release of cartage. It's been a fun ride, but Docker-
+based images are our future at Kinetic Commerce. There is one feature
+that remains useful, the release-metadata output. We have created a
+new, more extensible format for which we will be creating a gem to
+manage this. One example of the implementation can be found at:
+
+  https://github.com/KineticCafe/release-metadata-ts
+
+We will also be replacing `cartage-rack` with a new gem supporting
+this new format.
+  EOS
 
   license 'MIT'
 
-  ruby20!
+  spec_extras[:metadata] = ->(val) { val["rubygems_mfa_required"] = "true" }
 
   extra_deps << ['gli', '~> 2.13']
 

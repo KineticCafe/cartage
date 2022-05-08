@@ -13,18 +13,24 @@ dependencies so that it can be deployed in environments with strict access
 control rules and without requiring development tool presence on the target
 server(s).
 
-This repository will see minimal development moving forward given the move
-toward Docker builders and deploys; it is likely that the only thing that will
-eventually result from this repository is the new `cartage manifest` command
-that satisfies `cartage-rack`.
+This is the last release of cartage. It's been a fun ride, but Docker-based
+images are our future at Kinetic Commerce. There is one feature that remains
+useful, the release-metadata output. We have created a new, more extensible
+format for which we will be creating a gem to manage this. One example of the
+implementation can be found at:
+
+https://github.com/KineticCafe/release-metadata-ts
+
+We will also be replacing `cartage-rack` with a new gem supporting this new
+format.
 
 === Overview
 
 Cartage has learned its tricks from Heroku’s build process, Capistrano
 deployments, and Hoe. From Hoe, it learned to keep a manifest to control what
-is packaged (as well as its plug-in system). From Heroku, it learned to keep a
-simple ignore file. From Capistrano, it learned to mark the Git hashref as a
-file in its built package, and to timestamp the packages.
+is packaged (as well as its plug-in system). From Heroku, it learned to keep
+a simple ignore file. From Capistrano, it learned to mark the Git hashref as
+a file in its built package, and to timestamp the packages.
 
 Cartage follows a relatively simple set of steps when creating a package:
 

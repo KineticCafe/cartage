@@ -10,7 +10,7 @@ require 'cartage/config'
 ##
 # Cartage, a reliable package builder.
 class Cartage
-  VERSION = '2.2' #:nodoc:
+  VERSION = '2.2.1' #:nodoc:
 
   # Creates a new Cartage instance. If provided a Cartage::Config object in
   # +config+, sets the configuration and resolves it. If +config+ is not

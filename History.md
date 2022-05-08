@@ -1,126 +1,145 @@
+### 2.2.1 / 2022-05-08
+
+- This is the last release of cartage. It's been a fun ride, but Docker-based
+  images are our future at Kinetic Commerce. There is one feature that remains
+  useful, the release-metadata output. We have created a new, more extensible
+  format for which we will be creating a gem to manage this. One example of the
+  implementation can be found at:
+
+  https://github.com/KineticCafe/release-metadata-ts
+
+  We will also be replacing `cartage-rack` with a new gem supporting this new
+  format.
+
+### 2.2 / 2020-03-18
+
+- Added a `metadata` command.
+
+- Indicated that development on `cartage` was winding down.
+
 ### 2.1 / 2017-02-18
 
-*   Cartage 2.1 now knows how to load plug-ins relative to the project root
-    path. If you have a plug-in that you aren’t ready to release as a gem, just
-    put it in your project as `<ROOT_PATH>/lib/cartage/plugins/foo.rb`; Cartage
-    will find it automatically. This feature does not work with command
-    extensions.
+- Cartage 2.1 now knows how to load plug-ins relative to the project root
+  path. If you have a plug-in that you aren't ready to release as a gem, just
+  put it in your project as `<ROOT_PATH>/lib/cartage/plugins/foo.rb`; Cartage
+  will find it automatically. This feature does not work with command
+  extensions.
 
-*   The hidden command, `cartage info plugins`, will now correctly report
-    plug-in versions.
+- The hidden command, `cartage info plugins`, will now correctly report
+  plug-in versions.
 
-*   Cartage tries to restore files that were modified by a build system prior
-    to packaging. This would fail on files that were not part of the resulting
-    tarball (because they were in .cartignore). This has been fixed.
+- Cartage tries to restore files that were modified by a build system prior
+  to packaging. This would fail on files that were not part of the resulting
+  tarball (because they were in .cartignore). This has been fixed.
 
-*   A new utility function, Cartage#recursive_copy has been added to
-    recursively copy directories from disk into the work path. The interaction
-    of relative and absolute directories is subtle but documented on the method
-    itself.
+- A new utility function, Cartage#recursive_copy has been added to
+  recursively copy directories from disk into the work path. The interaction
+  of relative and absolute directories is subtle but documented on the method
+  itself.
 
 ### 2.0 / 2016-05-31
 
-*   Rewrite! Over the last year, a number of deficiencies have been found,
-    especially related to the extensibility and the execution of various
-    phases. Cartage 2.0 is a rewrite of major parts of the system and is
-    intentionally not backwards compatible with Cartage 1.0. Documentation for
-    upgrading is provided.
+- Rewrite! Over the last year, a number of deficiencies have been found,
+  especially related to the extensibility and the execution of various
+  phases. Cartage 2.0 is a rewrite of major parts of the system and is
+  intentionally not backwards compatible with Cartage 1.0. Documentation for
+  upgrading is provided.
 
-    *   Changed from CmdParse to GLI for providing CLI interface structure.
+  - Changed from CmdParse to GLI for providing CLI interface structure.
 
-    *   Removed the -E/--environment flag and support for environment-tagged
-        configuration.
+  - Removed the -E/--environment flag and support for environment-tagged
+    configuration.
 
-    *   Added compression configuration. Supported types are bzip2, gzip, and
-        none. The default remains bzip2.
+  - Added compression configuration. Supported types are bzip2, gzip, and
+    none. The default remains bzip2.
 
-    *   The release_hashref file is no longer created. It has been replaced
-        with release_metadata.json. This contains more information and requires
-        cartage-rack 2.0 to display.
+  - The release_hashref file is no longer created. It has been replaced
+    with release_metadata.json. This contains more information and requires
+    cartage-rack 2.0 to display.
 
-    *   Plug-ins have changed:
+  - Plug-ins have changed:
 
-        *   Plug-in capabilities must be provided in the gem path
-            <tt>lib/cartage/plugins</tt>.
+    - Plug-in capabilities must be provided in the gem path
+      <tt>lib/cartage/plugins</tt>.
 
-        *   Plug-ins declare their feature support to indicate the points that
-            they will be called during the packaging process.
+    - Plug-ins declare their feature support to indicate the points that
+      they will be called during the packaging process.
 
-        *   Plug-in commands must be provided in the gem path
-            <tt>lib/cartage/commands</tt>. These commands are always available.
+    - Plug-in commands must be provided in the gem path
+      <tt>lib/cartage/commands</tt>. These commands are always available.
 
-        *   Plug-ins are currently automatically enabled on discovery and may
-            be explicitly disabled in configuration. Future versions of Cartage
-            will support explicit plug-in selection in configuration.
+    - Plug-ins are currently automatically enabled on discovery and may
+      be explicitly disabled in configuration. Future versions of Cartage
+      will support explicit plug-in selection in configuration.
 
-    *   Made more functions public for use by plug-ins.
+  - Made more functions public for use by plug-ins.
 
-    *   Removed support for default configuration files outside of a project
-        directory. Only <tt>config/cartage.yml</tt>, <tt>.cartage.yml</tt>, and
-        <tt>cartage.yml</tt> will be read now.
-        <tt>$HOME/.config/cartage.yml</tt>, <tt>$HOME/.cartage.yml</tt>, and
-        <tt>/etc/cartage.yml</tt> are no longer read. The previous behaviour
-        can be obtained with ERB insertion into one of the project-specific
-        files, as shown below. This pattern is not recommended.
+  - Removed support for default configuration files outside of a project
+    directory. Only <tt>config/cartage.yml</tt>, <tt>.cartage.yml</tt>, and
+    <tt>cartage.yml</tt> will be read now.
+    <tt>$HOME/.config/cartage.yml</tt>, <tt>$HOME/.cartage.yml</tt>, and
+    <tt>/etc/cartage.yml</tt> are no longer read. The previous behaviour
+    can be obtained with ERB insertion into one of the project-specific
+    files, as shown below. This pattern is not recommended.
 
-            ---
-            # cartage.yml
-            % candidates = []
-            % candidates << "#{ENV['HOME']}/.config/cartage.yml"
-            % candidates << "#{ENV['HOME']}/.cartage.yml"
-            % candidates << '/etc/cartage.yml'
-            % global = candidate.select { |c| File.exist?(c) }
-            <%= Cartage::Config.import(global) %>
+        ---
+        # cartage.yml
+        % candidates = []
+        % candidates << "#{ENV['HOME']}/.config/cartage.yml"
+        % candidates << "#{ENV['HOME']}/.cartage.yml"
+        % candidates << '/etc/cartage.yml'
+        % global = candidate.select { |c| File.exist?(c) }
+        <%= Cartage::Config.import(global) %>
 
-    *   Extracted bundler support as a new gem,
-        [cartage-bundler]{https://github.com/KineticCafe/cartage-bundler}.
+  - Extracted bundler support as a new gem,
+    [cartage-bundler]{https://github.com/KineticCafe/cartage-bundler}.
 
-    *   Extracted tarball building as a built-in plug-in,
-        Cartage::BuildTarball.
+  - Extracted tarball building as a built-in plug-in,
+    Cartage::BuildTarball.
 
-*   Added Cartage::Minitest to provide methods to assist with testing Cartage
-    and plug-ins using Minitest.
+- Added Cartage::Minitest to provide methods to assist with testing Cartage
+  and plug-ins using Minitest.
 
 ### 1.2 / 2015-05-27
 
-*   1 minor enhancement:
+- 1 minor enhancement:
 
-    *   Added the chosen timestamp as the second line of the release hashref
-        files.
+  - Added the chosen timestamp as the second line of the release hashref
+    files.
 
-*   2 minor bugfixes:
+- 2 minor bugfixes:
 
-    *   Fixed {#3}[https://github.com/KineticCafe/issues/3] so that spec and
-        feature directories are excluded by default. Provided by @jsutlovic.
-    *   Fixed {#5}[https://github.com/KineticCafe/pulls/5] so that the manifest
-    *   is deduplicated prior to write. Provided by @jsutlovic.
+  - Fixed {#3}[https://github.com/KineticCafe/issues/3] so that spec and
+    feature directories are excluded by default. Provided by @jsutlovic.
+  - Fixed {#5}[https://github.com/KineticCafe/pulls/5] so that the manifest
+  - is deduplicated prior to write. Provided by @jsutlovic.
 
 ### 1.1.1 / 2015-03-26
 
-*   1 minor bugfix
+- 1 minor bugfix
 
-    *   Fixed a Ruby syntax issue with Ruby 2.0.
+  - Fixed a Ruby syntax issue with Ruby 2.0.
 
 ### 1.1 / 2015-03-26
 
-*   1 major enhancement
+- 1 major enhancement
 
-    *   Added a Cartage::StatusError with an exitstatus support.
-        Cartage::QuietError is now based on this.
+  - Added a Cartage::StatusError with an exitstatus support.
+    Cartage::QuietError is now based on this.
 
-*   1 minor bugfix
+- 1 minor bugfix
 
-    *   Restored an accidentally removed method,
-        Cartage::#create_bundle_cache.
+  - Restored an accidentally removed method,
+    Cartage::#create_bundle_cache.
 
-*   2 documentation improvements
+- 2 documentation improvements
 
-    *   Identified postbuild script stages.
+  - Identified postbuild script stages.
 
-    *   Improved the Slack notifier example postbuild script.
+  - Improved the Slack notifier example postbuild script.
 
 ### 1.0 / 2015-03-24
 
-*   1 major enhancement
+- 1 major enhancement
 
-    *   Birthday!
+  - Birthday!
