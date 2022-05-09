@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 # stub: cartage 2.2.1 ruby lib
 
 Gem::Specification.new do |s|
@@ -6,10 +5,9 @@ Gem::Specification.new do |s|
   s.version = "2.2.1"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0".freeze) if s.respond_to? :required_rubygems_version=
-  s.metadata = { "documentation_uri" => "http://www.rubydoc.info/github/KineticCafe/cartage/master", "rubygems_mfa_required" => "true", "source_code_uri" => "https://github.com/KineticCafe/cartage/" } if s.respond_to? :metadata=
+  s.metadata = {"documentation_uri" => "http://www.rubydoc.info/github/KineticCafe/cartage/master", "rubygems_mfa_required" => "true", "source_code_uri" => "https://github.com/KineticCafe/cartage/"} if s.respond_to? :metadata=
   s.require_paths = ["lib".freeze]
   s.authors = ["Austin Ziegler".freeze, "Kinetic Cafe".freeze]
-  s.date = "2022-05-08"
   s.description = "Cartage provides a repeatable means to create a package for a server-side\napplication that can be used in deployment with a configuration tool like\nAnsible, Chef, Puppet, or Salt. The package is created with vendored\ndependencies so that it can be deployed in environments with strict access\ncontrol rules and without requiring development tool presence on the target\nserver(s).\n\nThis is the last release of cartage. It's been a fun ride, but Docker-based\nimages are our future at Kinetic Commerce. There is one feature that remains\nuseful, the release-metadata output. We have created a new, more extensible\nformat for which we will be creating a gem to manage this. One example of the\nimplementation can be found at:\n\nhttps://github.com/KineticCafe/release-metadata-ts\n\nWe will also be replacing `cartage-rack` with a new gem supporting this new\nformat.".freeze
   s.email = ["aziegler@kineticcafe.com".freeze, "dev@kineticcafe.com".freeze]
   s.executables = ["cartage".freeze]
@@ -22,43 +20,43 @@ Gem::Specification.new do |s|
   s.rubygems_version = "3.1.6".freeze
   s.summary = "Cartage provides a repeatable means to create a package for a server-side application that can be used in deployment with a configuration tool like Ansible, Chef, Puppet, or Salt".freeze
 
-  if s.respond_to? :specification_version then
+  if s.respond_to? :specification_version
     s.specification_version = 4
   end
 
-  if s.respond_to? :add_runtime_dependency then
-    s.add_runtime_dependency(%q<gli>.freeze, ["~> 2.13"])
-    s.add_development_dependency(%q<minitest>.freeze, ["~> 5.15"])
-    s.add_development_dependency(%q<rake>.freeze, [">= 10.0"])
-    s.add_development_dependency(%q<rdoc>.freeze, ["~> 6.4"])
-    s.add_development_dependency(%q<hoe-doofus>.freeze, ["~> 1.0"])
-    s.add_development_dependency(%q<hoe-gemspec2>.freeze, ["~> 1.1"])
-    s.add_development_dependency(%q<hoe-git>.freeze, ["~> 1.5"])
-    s.add_development_dependency(%q<hoe-travis>.freeze, ["~> 1.2"])
-    s.add_development_dependency(%q<minitest-autotest>.freeze, ["~> 1.0"])
-    s.add_development_dependency(%q<minitest-bisect>.freeze, ["~> 1.2"])
-    s.add_development_dependency(%q<minitest-bonus-assertions>.freeze, ["~> 3.0"])
-    s.add_development_dependency(%q<minitest-focus>.freeze, ["~> 1.1"])
-    s.add_development_dependency(%q<minitest-moar>.freeze, ["~> 0.0"])
-    s.add_development_dependency(%q<minitest-pretty_diff>.freeze, ["~> 0.1"])
-    s.add_development_dependency(%q<simplecov>.freeze, ["~> 0.7"])
-    s.add_development_dependency(%q<hoe>.freeze, ["~> 3.23"])
+  if s.respond_to? :add_runtime_dependency
+    s.add_runtime_dependency("gli".freeze, ["~> 2.13"])
+    s.add_development_dependency("minitest".freeze, ["~> 5.15"])
+    s.add_development_dependency("rake".freeze, [">= 10.0"])
+    s.add_development_dependency("rdoc".freeze, ["~> 6.4"])
+    s.add_development_dependency("hoe-doofus".freeze, ["~> 1.0"])
+    s.add_development_dependency("hoe-gemspec2".freeze, ["~> 1.1"])
+    s.add_development_dependency("hoe-git".freeze, ["~> 1.5"])
+    s.add_development_dependency("hoe-travis".freeze, ["~> 1.2"])
+    s.add_development_dependency("minitest-autotest".freeze, ["~> 1.0"])
+    s.add_development_dependency("minitest-bisect".freeze, ["~> 1.2"])
+    s.add_development_dependency("minitest-bonus-assertions".freeze, ["~> 3.0"])
+    s.add_development_dependency("minitest-focus".freeze, ["~> 1.1"])
+    s.add_development_dependency("minitest-moar".freeze, ["~> 0.0"])
+    s.add_development_dependency("minitest-pretty_diff".freeze, ["~> 0.1"])
+    s.add_development_dependency("simplecov".freeze, ["~> 0.7"])
+    s.add_development_dependency("hoe".freeze, ["~> 3.23"])
   else
-    s.add_dependency(%q<gli>.freeze, ["~> 2.13"])
-    s.add_dependency(%q<minitest>.freeze, ["~> 5.15"])
-    s.add_dependency(%q<rake>.freeze, [">= 10.0"])
-    s.add_dependency(%q<rdoc>.freeze, ["~> 6.4"])
-    s.add_dependency(%q<hoe-doofus>.freeze, ["~> 1.0"])
-    s.add_dependency(%q<hoe-gemspec2>.freeze, ["~> 1.1"])
-    s.add_dependency(%q<hoe-git>.freeze, ["~> 1.5"])
-    s.add_dependency(%q<hoe-travis>.freeze, ["~> 1.2"])
-    s.add_dependency(%q<minitest-autotest>.freeze, ["~> 1.0"])
-    s.add_dependency(%q<minitest-bisect>.freeze, ["~> 1.2"])
-    s.add_dependency(%q<minitest-bonus-assertions>.freeze, ["~> 3.0"])
-    s.add_dependency(%q<minitest-focus>.freeze, ["~> 1.1"])
-    s.add_dependency(%q<minitest-moar>.freeze, ["~> 0.0"])
-    s.add_dependency(%q<minitest-pretty_diff>.freeze, ["~> 0.1"])
-    s.add_dependency(%q<simplecov>.freeze, ["~> 0.7"])
-    s.add_dependency(%q<hoe>.freeze, ["~> 3.23"])
+    s.add_dependency("gli".freeze, ["~> 2.13"])
+    s.add_dependency("minitest".freeze, ["~> 5.15"])
+    s.add_dependency("rake".freeze, [">= 10.0"])
+    s.add_dependency("rdoc".freeze, ["~> 6.4"])
+    s.add_dependency("hoe-doofus".freeze, ["~> 1.0"])
+    s.add_dependency("hoe-gemspec2".freeze, ["~> 1.1"])
+    s.add_dependency("hoe-git".freeze, ["~> 1.5"])
+    s.add_dependency("hoe-travis".freeze, ["~> 1.2"])
+    s.add_dependency("minitest-autotest".freeze, ["~> 1.0"])
+    s.add_dependency("minitest-bisect".freeze, ["~> 1.2"])
+    s.add_dependency("minitest-bonus-assertions".freeze, ["~> 3.0"])
+    s.add_dependency("minitest-focus".freeze, ["~> 1.1"])
+    s.add_dependency("minitest-moar".freeze, ["~> 0.0"])
+    s.add_dependency("minitest-pretty_diff".freeze, ["~> 0.1"])
+    s.add_dependency("simplecov".freeze, ["~> 0.7"])
+    s.add_dependency("hoe".freeze, ["~> 3.23"])
   end
 end

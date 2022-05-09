@@ -96,7 +96,7 @@ class Cartage
       # configuration files will be located.
       def load(filename)
         config_file = resolve_config_file(filename)
-        config = ::YAML.load(ERB.new(config_file.read, trim_mode: "%-").result)
+        config = ::YAML.unsafe_load(ERB.new(config_file.read, trim_mode: "%-").result)
         new(config)
       end
 

@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
-require 'pathname'
-require 'json'
+require "pathname"
+require "json"
 
-require 'cartage/core'
-require 'cartage/plugin'
-require 'cartage/config'
+require "cartage/core"
+require "cartage/plugin"
+require "cartage/config"
 
 ##
 # Cartage, a reliable package builder.
 class Cartage
-  VERSION = '2.2.1' #:nodoc:
+  VERSION = "2.2.1" # :nodoc:
 
   # Creates a new Cartage instance. If provided a Cartage::Config object in
   # +config+, sets the configuration and resolves it. If +config+ is not
@@ -30,7 +30,7 @@ class Cartage
   # The default name of the package to be created, derived from the
   # repository's Git URL.
 
-  attr_accessor_with_default :name, default: -> { File.basename(repo_url, '.git') }
+  attr_accessor_with_default :name, default: -> { File.basename(repo_url, ".git") }
 
   ##
   # :attr_accessor: root_path
@@ -44,11 +44,11 @@ class Cartage
   # repository.
 
   attr_reader_with_default :root_path do
-    Pathname(%x(git rev-parse --show-cdup).chomp).expand_path
+    Pathname(`git rev-parse --show-cdup`.chomp).expand_path
   end
 
   ##
-  def root_path=(v) #:nodoc:
+  def root_path=(v) # :nodoc:
     reset_computed_values
     @root_path = Pathname(v).expand_path
   end
@@ -65,7 +65,7 @@ class Cartage
 
   attr_accessor_with_default :target,
     transform: ->(v) { Pathname(v) },
-    default: -> { Pathname('tmp') }
+    default: -> { Pathname("tmp") }
 
   ##
   # :attr_accessor: timestamp
@@ -78,7 +78,7 @@ class Cartage
   # The default timestamp.
 
   attr_accessor_with_default :timestamp, default: -> {
-    Time.now.utc.strftime('%Y%m%d%H%M%S')
+    Time.now.utc.strftime("%Y%m%d%H%M%S")
   }
 
   ##
@@ -97,9 +97,9 @@ class Cartage
   end
 
   ##
-  def compression=(value) #:nodoc:
+  def compression=(value) # :nodoc:
     case value
-    when :bzip2, :none, :gzip, 'bzip2', 'none', 'gzip'
+    when :bzip2, :none, :gzip, "bzip2", "none", "gzip"
       @compression = value
       reset_computed_values
     else
@@ -142,10 +142,10 @@ class Cartage
   end
 
   ##
-  def dependency_cache_path=(path) #:nodoc:
+  def dependency_cache_path=(path) # :nodoc:
     @dependency_cache_path = Pathname(path || tmp_path).expand_path
-    @dependency_cache = @dependency_cache_path.
-      join("dependency-cache.tar#{tar_compression_extension}")
+    @dependency_cache = @dependency_cache_path
+      .join("dependency-cache.tar#{tar_compression_extension}")
   end
 
   # Commands that normally output data will have that output suppressed.
@@ -159,7 +159,7 @@ class Cartage
   # by providing the +for_plugin+ or +for_command+ parameters.
   def config(for_plugin: nil, for_command: nil)
     if for_plugin && for_command
-      fail ArgumentError, 'Cannot get config for plug-in and command together'
+      fail ArgumentError, "Cannot get config for plug-in and command together"
     elsif for_plugin
       @config.dig(:plugins, for_plugin.to_sym) || OpenStruct.new
     elsif for_command
@@ -171,7 +171,7 @@ class Cartage
 
   # The config file. This should not be used by clients.
   def config=(cfg) # :nodoc:
-    fail ArgumentError, 'No config provided' unless cfg
+    fail ArgumentError, "No config provided" unless cfg
     @plugins = Plugins.new
     @config = cfg
     resolve_config!
@@ -183,7 +183,7 @@ class Cartage
       package: {
         name: name,
         repo: {
-          type: 'git', # Hardcoded until we have other support
+          type: "git", # Hardcoded until we have other support
           url: repo_url
         },
         hashref: release_hashref,
@@ -194,21 +194,21 @@ class Cartage
 
   # Return the release hashref.
   def release_hashref
-    @release_hashref ||= %x(git rev-parse HEAD).chomp
+    @release_hashref ||= `git rev-parse HEAD`.chomp
   end
 
   # The repository URL.
   def repo_url
     unless defined? @repo_url
-      @repo_url = %x(git remote show -n origin).
-        match(/\n\s+Fetch URL: (?<fetch>[^\n]+)/)[:fetch]
+      @repo_url = `git remote show -n origin`
+        .match(/\n\s+Fetch URL: (?<fetch>[^\n]+)/)[:fetch]
     end
     @repo_url
   end
 
   # The temporary path.
   def tmp_path
-    @tmp_path ||= root_path.join('tmp')
+    @tmp_path ||= root_path.join("tmp")
   end
 
   # The working path for the job, in #tmp_path.
@@ -236,13 +236,13 @@ class Cartage
   # A utility method for Cartage plug-ins to run a +command+ in the shell. Uses
   # IO.popen.
   def run(command)
-    display command.join(' ')
+    display command.join(" ")
 
-    IO.popen(command + [ err: %i(child out) ]) do |io|
+    IO.popen(command + [err: %i[child out]]) do |io|
       __display(io.read(128), partial: true, verbose: true) until io.eof?
     end
 
-    fail StandardError, "Error running '#{command.join(' ')}'" unless $?.success?
+    fail StandardError, "Error running '#{command.join(" ")}'" unless $?.success?
   end
 
   # Returns the registered plug-ins, once configuration has been resolved.
@@ -276,13 +276,13 @@ class Cartage
 
   # Just save the release metadata.
   def save_release_metadata(local: false)
-    display 'Saving release metadata...'
+    display "Saving release metadata..."
     json = JSON.generate(release_metadata)
 
     if local
-      Pathname('.').join('release-metadata.json').write(json)
+      Pathname(".").join("release-metadata.json").write(json)
     else
-      work_path.join('release-metadata.json').write(json)
+      work_path.join("release-metadata.json").write(json)
       final_release_metadata_json.write(json)
     end
   end
@@ -290,24 +290,24 @@ class Cartage
   # Returns the flag to use with +tar+ given the value of +compression+.
   def tar_compression_flag
     case compression
-    when :bzip2, 'bzip2', nil
-      'j'
-    when :gzip, 'gzip'
-      'z'
-    when :none, 'none'
-      ''
+    when :bzip2, "bzip2", nil
+      "j"
+    when :gzip, "gzip"
+      "z"
+    when :none, "none"
+      ""
     end
   end
 
   # Returns the extension to use with +tar+ given the value of +compression+.
   def tar_compression_extension
     case compression
-    when :bzip2, 'bzip2', nil
-      '.bz2'
-    when :gzip, 'gzip'
-      '.gz'
-    when :none, 'none'
-      ''
+    when :bzip2, "bzip2", nil
+      ".bz2"
+    when :gzip, "gzip"
+      ".gz"
+    when :none, "none"
+      ""
     end
   end
 
@@ -356,18 +356,18 @@ class Cartage
     target = work_path
     target /= to if to
 
-    tar_cf_cmd = [ 'tar', 'cf', '-', '-h', '-C', parent, path ].map(&:to_s)
-    tar_xf_cmd = [ 'tar', 'xf', '-', '-C', target ].map(&:to_s)
+    tar_cf_cmd = ["tar", "cf", "-", "-h", "-C", parent, path].map(&:to_s)
+    tar_xf_cmd = ["tar", "xf", "-", "-C", target].map(&:to_s)
 
     IO.popen(tar_cf_cmd) do |cf|
-      IO.popen(tar_xf_cmd, 'w') do |xf|
+      IO.popen(tar_xf_cmd, "w") do |xf|
         xf.write cf.read
       end
 
-      fail StandardError, "Error running #{tar_xf_cmd.join(' ')}" unless $?.success?
+      fail StandardError, "Error running #{tar_xf_cmd.join(" ")}" unless $?.success?
     end
 
-    fail StandardError, "Error running #{tar_cf_cmd.join(' ')}" unless $?.success?
+    fail StandardError, "Error running #{tar_cf_cmd.join(" ")}" unless $?.success?
   end
 
   private
@@ -375,7 +375,7 @@ class Cartage
   attr_writer :release_hashref
 
   def resolve_config!
-    fail 'No configuration' unless config
+    fail "No configuration" unless config
 
     self.disable_dependency_cache = config.disable_dependency_cache
     self.quiet = config.quiet
@@ -388,7 +388,7 @@ class Cartage
     maybe_assign :dependency_cache_path, config.dependency_cache_path
     maybe_assign :release_hashref, config.release_hashref
 
-    lib = root_path.join('lib').to_s
+    lib = root_path.join("lib").to_s
     $LOAD_PATH.unshift(lib) unless $LOAD_PATH.any? { |l| l == lib }
     Cartage::Plugin.load(rescan: true)
 
@@ -407,7 +407,7 @@ class Cartage
 
   def maybe_assign(name, value)
     return if value.nil? || (value.respond_to?(:empty?) && value.empty?) ||
-        instance_variable_defined?(:"@#{name}")
+      instance_variable_defined?(:"@#{name}")
     send(:"#{name}=", value)
   end
 
@@ -431,39 +431,39 @@ class Cartage
   end
 
   def prepare_work_area
-    display 'Preparing cartage work area...'
+    display "Preparing cartage work area..."
 
     work_path.rmtree if work_path.exist?
     work_path.mkpath
 
     manifest.resolve(root_path) do |file_list|
       tar_cf_cmd = [
-        'tar', 'cf', '-', '-C', parent, '-h', '-T', file_list
+        "tar", "cf", "-", "-C", parent, "-h", "-T", file_list
       ].map(&:to_s)
 
       tar_xf_cmd = [
-        'tar', 'xf', '-', '-C', work_path, '--strip-components=1'
+        "tar", "xf", "-", "-C", work_path, "--strip-components=1"
       ].map(&:to_s)
 
       IO.popen(tar_cf_cmd) do |cf|
-        IO.popen(tar_xf_cmd, 'w') do |xf|
+        IO.popen(tar_xf_cmd, "w") do |xf|
           xf.write cf.read
         end
 
-        fail StandardError, "Error running #{tar_xf_cmd.join(' ')}" unless $?.success?
+        fail StandardError, "Error running #{tar_xf_cmd.join(" ")}" unless $?.success?
       end
 
-      fail StandardError, "Error running #{tar_cf_cmd.join(' ')}" unless $?.success?
+      fail StandardError, "Error running #{tar_cf_cmd.join(" ")}" unless $?.success?
     end
   end
 
   def restore_modified_files
-    %x(git status -s).
-      split($/).
-      map(&:split).
-      select { |s, _f| s !~ /\?/ }.
-      map(&:last).
-      each { |file|
+    `git status -s`
+      .split($/)
+      .map(&:split)
+      .select { |s, _f| s !~ /\?/ }
+      .map(&:last)
+      .each { |file|
         restore_modified_file file
       }
   end
@@ -472,11 +472,11 @@ class Cartage
     return unless work_path.join(filename).exist?
 
     command = [
-      'git', 'show', "#{release_hashref}:#{filename}"
+      "git", "show", "#{release_hashref}:#{filename}"
     ]
 
     IO.popen(command) do |show|
-      work_path.join(filename).open('w') { |f|
+      work_path.join(filename).open("w") { |f|
         f.puts show.read
       }
     end
@@ -494,16 +494,16 @@ class Cartage
 
   def extract_dependency_cache
     return if disable_dependency_cache || !dependency_cache.exist?
-    run %W(tar xf#{tar_compression_flag} #{dependency_cache} -C #{work_path})
+    run %W[tar xf#{tar_compression_flag} #{dependency_cache} -C #{work_path}]
   end
 
   def create_dependency_cache(paths = [])
     return if disable_dependency_cache || paths.empty?
     run [
-      'tar',
+      "tar",
       "cf#{tar_compression_flag}",
       dependency_cache,
-      '-C',
+      "-C",
       work_path,
       *paths
     ].map(&:to_s)
@@ -527,4 +527,4 @@ class Cartage
   end
 end
 
-require_relative 'cartage/config'
+require_relative "cartage/config"

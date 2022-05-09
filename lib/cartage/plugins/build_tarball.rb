@@ -27,10 +27,10 @@ class Cartage::BuildTarball < Cartage::Plugin
 
   def run_command
     command = [
-      'tar',
+      "tar",
       "cf#{cartage.tar_compression_flag}",
       package_name.to_s,
-      '-C',
+      "-C",
       cartage.tmp_path.to_s,
       cartage.name
     ]

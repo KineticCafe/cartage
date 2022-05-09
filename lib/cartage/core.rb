@@ -4,7 +4,7 @@
 class Cartage
   # Extensions for us to use to help define Cartage with its attr_readers with
   # defaults and attr_writers with transforms.
-  module Core #:nodoc:
+  module Core # :nodoc:
     private
 
     # Define an attr_reader with a memoized default value. The +default+ is
@@ -25,8 +25,8 @@ class Cartage
     #    # Does the same thing
     #    attr_reader_with_default :answer, 42
     def attr_reader_with_default(name, default = nil, &block)
-      fail ArgumentError, 'No default provided.' unless default || block
-      fail ArgumentError, 'Too many defaults provided.' if default && block
+      fail ArgumentError, "No default provided." unless default || block
+      fail ArgumentError, "Too many defaults provided." if default && block
 
       default_ivar = :"@default_#{name}"
       default_name = :"default_#{name}"
@@ -43,10 +43,10 @@ class Cartage
       end
 
       dblk = if default.respond_to?(:call)
-               default
-             else
-               block || -> { default }
-             end
+        default
+      else
+        block || -> { default }
+      end
 
       define_method(default_name) do
         if instance_variable_defined?(default_ivar)
@@ -64,18 +64,18 @@ class Cartage
     # The +transform+ may be provided as a callable (such as a proc), an object
     # that responds to #to_proc (such as a Symbol), or a block.
     def attr_writer_with_transform(name, transform = nil, &block)
-      fail ArgumentError, 'No transform provided.' unless transform || block
-      fail ArgumentError, 'Too many transforms provided.' if transform && block
+      fail ArgumentError, "No transform provided." unless transform || block
+      fail ArgumentError, "Too many transforms provided." if transform && block
 
       tblk = if transform.respond_to?(:call)
-               transform
-             elsif transform.respond_to?(:to_proc)
-               transform.to_proc
-             elsif block
-               block
-             else
-               fail ArgumentError, 'Transform is not callable.'
-             end
+        transform
+      elsif transform.respond_to?(:to_proc)
+        transform.to_proc
+      elsif block
+        block
+      else
+        fail ArgumentError, "Transform is not callable."
+      end
 
       define_method(:"#{name}=") do |v|
         instance_variable_set(:"@#{name}", tblk.call(v))
@@ -109,4 +109,4 @@ class Cartage
   extend Core
 end
 
-require_relative 'backport'
+require_relative "backport"

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'tempfile'
+require "tempfile"
 
 # Manage and use the package manifest ('Manifest.txt') and the ignore file
 # ('.cartignore').
@@ -8,21 +8,21 @@ class Cartage::Manifest < Cartage::Plugin
   # This exception is raised if the package manifest is missing.
   class MissingError < StandardError
     def message # :nodoc:
-      <<-exception
-Cartage cannot create a package without a Manifest.txt file. You may generate
-or update the Manifest.txt file with the following command:
+      <<~EXCEPTION
+        Cartage cannot create a package without a Manifest.txt file. You may generate
+        or update the Manifest.txt file with the following command:
 
-    cartage manifest generate
+            cartage manifest generate
 
-      exception
+      EXCEPTION
     end
   end
 
-  DIFF = if system('gdiff', __FILE__, __FILE__) #:nodoc:
-           'gdiff'
-         else
-           'diff'
-         end
+  DIFF = if system("gdiff", __FILE__, __FILE__) # :nodoc:
+    "gdiff"
+  else
+    "diff"
+  end
 
   # Resolve the Manifest to something that can be used by <tt>tar -T</tt>. The
   # manifest should be relative to the files in the repository, as reported
@@ -40,13 +40,13 @@ or update the Manifest.txt file with the following command:
   # A block is required and is provided the +resolved_path+.
   def resolve(path = nil) # :yields: resolved_path
     fail MissingError unless manifest_file.exist?
-    fail ArgumentError, 'A block is required.' unless block_given?
+    fail ArgumentError, "A block is required." unless block_given?
 
     data = strip_comments_and_empty_lines(manifest_file.readlines)
-    fail 'Manifest.txt is empty.' if data.empty?
+    fail "Manifest.txt is empty." if data.empty?
 
     path = Pathname(path || Dir.pwd).expand_path.basename
-    tmpfile = Tempfile.new('Manifest.')
+    tmpfile = Tempfile.new("Manifest.")
 
     tmpfile.puts prune(data, with_slugignore: true).map { |line|
       path.join(line).to_s
@@ -70,19 +70,19 @@ or update the Manifest.txt file with the following command:
   # Checks Manifest.txt
   def check
     fail MissingError unless manifest_file.exist?
-    tmp = create_file_list('Manifest.tmp')
+    tmp = create_file_list("Manifest.tmp")
 
-    args = [ DIFF, '-du', manifest_file.basename.to_s, tmp.to_s ]
+    args = [DIFF, "-du", manifest_file.basename.to_s, tmp.to_s]
 
     if cartage.quiet
-      %x(#{(args << '-q').join(' ')})
+      `#{(args << "-q").join(" ")}`
     else
       system(*args)
     end
 
     $?.success?
   ensure
-    tmp.unlink if tmp
+    tmp&.unlink
   end
 
   # Installs the default .cartignore file. Will either +overwrite+ or +merge+
@@ -90,8 +90,8 @@ or update the Manifest.txt file with the following command:
   def install_default_ignore(mode: nil)
     save = mode || !ignore_file.exist?
 
-    if mode == 'merge'
-      cartage.display('Merging .cartignore...')
+    if mode == "merge"
+      cartage.display("Merging .cartignore...")
       data = strip_comments_and_empty_lines(ignore_file.readlines)
 
       if data.empty?
@@ -101,10 +101,10 @@ or update the Manifest.txt file with the following command:
         data = data.uniq.join("\n")
       end
     elsif save
-      cartage.display('Creating .cartignore...')
+      cartage.display("Creating .cartignore...")
       data = DEFAULT_IGNORE
     else
-      cartage.display('.cartignore already exists, skipping...')
+      cartage.display(".cartignore already exists, skipping...")
     end
 
     ignore_file.write(data) if save
@@ -113,37 +113,37 @@ or update the Manifest.txt file with the following command:
   private
 
   def ignore_file
-    @ignore_file ||= @cartage.root_path.join('.cartignore')
+    @ignore_file ||= @cartage.root_path.join(".cartignore")
   end
 
   def slugignore_file
-    @slugignore_file ||= @cartage.root_path.join('.slugignore')
+    @slugignore_file ||= @cartage.root_path.join(".slugignore")
   end
 
   def manifest_file
-    @manifest_file ||= @cartage.root_path.join('Manifest.txt')
+    @manifest_file ||= @cartage.root_path.join("Manifest.txt")
   end
 
   def create_file_list(filename)
-    files = prune(%x(git ls-files).split.map(&:chomp)).sort.uniq.join("\n")
+    files = prune(`git ls-files`.split.map(&:chomp)).sort.uniq.join("\n")
     Pathname(filename).tap { |f| f.write("#{files}\n") }
   end
 
   def ignore_patterns(with_slugignore: false)
     pats = if ignore_file.exist?
-             ignore_file.readlines
-           elsif with_slugignore && slugignore_file.exist?
-             slugignore_file.readlines
-           else
-             DEFAULT_IGNORE.split($/)
-           end
+      ignore_file.readlines
+    elsif with_slugignore && slugignore_file.exist?
+      slugignore_file.readlines
+    else
+      DEFAULT_IGNORE.split($/)
+    end
 
     pats = strip_comments_and_empty_lines(pats)
 
     pats.map { |pat|
-      if pat =~ %r{\A/[^*?]+\z}
+      if %r{\A/[^*?]+\z}.match?(pat)
         Regexp.new(%r{\A#{pat.sub(%r{\A/}, '')}/})
-      elsif pat =~ %r{/\z}
+      elsif pat.end_with?("/")
         Regexp.new(/\A#{pat}/)
       else
         pat
@@ -153,7 +153,7 @@ or update the Manifest.txt file with the following command:
 
   def strip_comments_and_empty_lines(list)
     list.map { |item|
-      item = item.chomp.gsub(/(?:^|[^\\])#.*\z/, '').strip
+      item = item.chomp.gsub(/(?:^|[^\\])#.*\z/, "").strip
       if item.empty?
         nil
       else
@@ -182,55 +182,55 @@ or update the Manifest.txt file with the following command:
     end
   end
 
-  DEFAULT_IGNORE = <<-'EOM' #:nodoc:
-# Some of these are in .gitignore, but let’s remove these just in case they got
-# checked in.
+  DEFAULT_IGNORE = <<~'EOM' # :nodoc:
+    # Some of these are in .gitignore, but let’s remove these just in case they got
+    # checked in.
 
-# Exact files to remove. Matches with ==.
-.DS_Store
-.autotest
-.editorconfig
-.env
-.git-wtfrc
-.gitignore
-.local.vimrc
-.lvimrc
-.cartignore
-.powenv
-.rake_tasks~
-.rspec
-.rubocop.yml
-.rvmrc
-.semaphore-cache
-.workenv
-Guardfile
-README.md
-bin/build
-bin/notify-project-board
-bin/osx-bootstrap
-bin/setup
+    # Exact files to remove. Matches with ==.
+    .DS_Store
+    .autotest
+    .editorconfig
+    .env
+    .git-wtfrc
+    .gitignore
+    .local.vimrc
+    .lvimrc
+    .cartignore
+    .powenv
+    .rake_tasks~
+    .rspec
+    .rubocop.yml
+    .rvmrc
+    .semaphore-cache
+    .workenv
+    Guardfile
+    README.md
+    bin/build
+    bin/notify-project-board
+    bin/osx-bootstrap
+    bin/setup
 
-# Patterns to remove. These have a *, **, or ? in them. Uses File.fnmatch with
-# File::FNM_DOTMATCH and File::FNM_EXTGLOB.
-*.rbc
-.*.swp
-**/.DS_Store
+    # Patterns to remove. These have a *, **, or ? in them. Uses File.fnmatch with
+    # File::FNM_DOTMATCH and File::FNM_EXTGLOB.
+    *.rbc
+    .*.swp
+    **/.DS_Store
 
-# Directories to remove. These should end with a slash. Matches as the regular
-# expression %r{\A#{pattern}}.
-db/seeds/development/
-db/seeds/test/
-# db/seeds/dit/
-# db/seeds/staging/
-log/
-test/
-tests/
-rspec/
-spec/
-specs/
-feature/
-features/
-tmp/
-vendor/bundle/
+    # Directories to remove. These should end with a slash. Matches as the regular
+    # expression %r{\A#{pattern}}.
+    db/seeds/development/
+    db/seeds/test/
+    # db/seeds/dit/
+    # db/seeds/staging/
+    log/
+    test/
+    tests/
+    rspec/
+    spec/
+    specs/
+    feature/
+    features/
+    tmp/
+    vendor/bundle/
   EOM
 end

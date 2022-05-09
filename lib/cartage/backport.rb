@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 # :nocov:
-if Gem::Version.new(RUBY_VERSION) < Gem::Version.new('2.3')
+if Gem::Version.new(RUBY_VERSION) < Gem::Version.new("2.3")
   # An implementation of #dig for Ruby pre-2.3. Based originally on
   # {Invoca/ruby_dig}[https://github.com/Invoca/ruby_dig] with some inspiration
   # from {jrochkind/dig_rb}[https://github.com/jrochkind/dig_rb].
-  module Cartage::Dig #:nodoc:
+  module Cartage::Dig # :nodoc:
     def dig(key, *rest)
       value = self[key]
 
@@ -55,7 +55,7 @@ end
 
 unless Pathname.public_method_defined?(:write)
   ##
-  module Cartage::PathnameWrite #:nodoc:
+  module Cartage::PathnameWrite # :nodoc:
     def write(*args)
       IO.write(to_s, *args)
     end

@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require 'cartage'
+require "cartage"
 
 ##
 # Provide helper methods for testing Cartage and plug-ins using Minitest.
 module Cartage::Minitest
-  #:nocov:
+  # :nocov:
 
   ##
   # A helper to stub ENV lookups against an +env+ hash. If +options+ has a key
@@ -43,7 +43,7 @@ module Cartage::Minitest
 
   # A helper to stub Cartage#repo_url to return +value+.
   def stub_cartage_repo_url(value = nil, &block)
-    stub_instance_method Cartage, :repo_url, -> { value || 'git://host/repo-url.git' },
+    stub_instance_method Cartage, :repo_url, -> { value || "git://host/repo-url.git" },
       &block
   end
 
@@ -76,8 +76,8 @@ module Cartage::Minitest
 
     Dir.singleton_class.send(:alias_method, :__minitest_stub_chdir__, :chdir)
     Dir.singleton_class.send(:define_method, :chdir) do |path, &block|
-      assert_equal.(expected, path)
-      block.call(path) if block
+      assert_equal.call(expected, path)
+      block&.call(path)
     end
 
     yield
@@ -90,14 +90,14 @@ module Cartage::Minitest
   # Stubs Cartage#run and asserts that the array of commands provided are
   # matched for each call and that they are all consumed.
   def stub_cartage_run(*expected)
-    expected = [ expected ].flatten(1)
+    expected = [expected].flatten(1)
     stub_instance_method Cartage, :run, ->(v) { assert_equal expected.shift, v } do
       yield
     end
     assert_empty expected
   end
 
-  #:nocov:
+  # :nocov:
 
   private
 
