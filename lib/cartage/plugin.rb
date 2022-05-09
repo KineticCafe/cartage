@@ -7,7 +7,7 @@ class Cartage
   class Plugin
     class << self
       # Register a plugin.
-      def inherited(plugin) #:nodoc:
+      def inherited(plugin) # :nodoc:
         registered[plugin.plugin_name] = plugin
       end
 
@@ -19,8 +19,8 @@ class Cartage
 
       # The name of the plugin.
       def plugin_name
-        @name ||= name.split(/::/).last.gsub(/([A-Z])/, '_\1').downcase.
-          sub(/^_/, '')
+        @name ||= name.split("::").last.gsub(/([A-Z])/, '_\1').downcase
+          .sub(/^_/, "")
       end
 
       # Iterate the plugins by +name+.
@@ -38,7 +38,7 @@ class Cartage
       end
 
       # A utility method to load and decorate an object with Cartage plug-ins.
-      def load_for(klass) #:nodoc:
+      def load_for(klass) # :nodoc:
         load
         decorate(klass)
       end
@@ -46,16 +46,17 @@ class Cartage
       # A utility method that will find all Cartage plug-ins and load them. A
       # Cartage plug-in is found in the Gems as <tt>cartage/plugins/*.rb</tt>
       # and descends from Cartage::Plugin.
-      def load(rescan: false) #:nodoc:
+      def load(rescan: false) # :nodoc:
         @found ||= {}
         @loaded ||= {}
+        @files = nil unless defined?(@files)
 
         if @files.nil? || rescan
-          @files = Gem.find_files('cartage/plugins/*.rb')
+          @files = Gem.find_files("cartage/plugins/*.rb")
         end
 
         @files.reverse_each do |path|
-          name = File.basename(path, '.rb').to_sym
+          name = File.basename(path, ".rb").to_sym
           @found[name] = path
         end
 
@@ -65,7 +66,7 @@ class Cartage
       end
 
       # Decorate the provided class with lazy initialization methods.
-      def decorate(klass) #:nodoc:
+      def decorate(klass) # :nodoc:
         registered.each do |name, plugin|
           ivar = "@#{name}"
 
@@ -122,7 +123,7 @@ class Cartage
 
     # A plug-in is given, as +cartage+, the instance of Cartage that owns it.
     def initialize(cartage)
-      fail NotImplementedError, 'not a subclass' if instance_of?(Cartage::Plugin)
+      fail NotImplementedError, "not a subclass" if instance_of?(Cartage::Plugin)
       @cartage = cartage
       @disabled = false
     end

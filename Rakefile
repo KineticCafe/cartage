@@ -38,7 +38,7 @@ this new format.
   extra_deps << ['gli', '~> 2.13']
 
   extra_dev_deps << ['rake', '>= 10.0']
-  extra_dev_deps << ['rdoc', '~> 4.2']
+  extra_dev_deps << ['rdoc', '~> 6.4']
   extra_dev_deps << ['hoe-doofus', '~> 1.0']
   extra_dev_deps << ['hoe-gemspec2', '~> 1.1']
   extra_dev_deps << ['hoe-git', '~> 1.5']
@@ -46,7 +46,7 @@ this new format.
   extra_dev_deps << ['minitest', '~> 5.4']
   extra_dev_deps << ['minitest-autotest', '~> 1.0']
   extra_dev_deps << ['minitest-bisect', '~> 1.2']
-  extra_dev_deps << ['minitest-bonus-assertions', '~> 2.0']
+  extra_dev_deps << ['minitest-bonus-assertions', '~> 3.0']
   extra_dev_deps << ['minitest-focus', '~> 1.1']
   extra_dev_deps << ['minitest-moar', '~> 0.0']
   extra_dev_deps << ['minitest-pretty_diff', '~> 0.1']

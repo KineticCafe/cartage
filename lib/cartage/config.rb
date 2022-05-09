@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
 begin
-  require 'psych'
+  require "psych"
 rescue LoadError
   nil # This has been intentionally suppressed.
 end
-require 'ostruct'
-require 'pathname'
-require 'erb'
-require 'yaml'
+require "ostruct"
+require "pathname"
+require "erb"
+require "yaml"
 
 class Cartage
   # The Cartage configuration structure. The supported Cartage-wide
@@ -80,13 +80,15 @@ class Cartage
   # The contents of the configuration file are evaluated through ERB and then
   # parsed from YAML and converted to nested OpenStruct objects.
   class Config < OpenStruct
-    #:stopdoc:
-    DEFAULT_CONFIG_FILES = %w(
-      ./config/cartage.yml
-      ./cartage.yml
-      ./.cartage.yml
-    ).each(&:freeze).freeze
-    #:startdoc:
+    # :stopdoc:
+    unless defined?(DEFAULT_CONFIG_FILES)
+      DEFAULT_CONFIG_FILES = %w[
+        ./config/cartage.yml
+        ./cartage.yml
+        ./.cartage.yml
+      ].each(&:freeze).freeze
+    end
+    # :startdoc:
 
     class << self
       # Load a Cartage configuration file as specified by +filename+. If
@@ -94,7 +96,7 @@ class Cartage
       # configuration files will be located.
       def load(filename)
         config_file = resolve_config_file(filename)
-        config = ::YAML.load(ERB.new(config_file.read, nil, '%<>-').result)
+        config = ::YAML.load(ERB.new(config_file.read, trim_mode: "%-").result)
         new(config)
       end
 
@@ -112,10 +114,10 @@ class Cartage
         filename = nil if filename == :default
 
         files = if filename
-                  [ filename ]
-                else
-                  DEFAULT_CONFIG_FILES
-                end
+          [filename]
+        else
+          DEFAULT_CONFIG_FILES
+        end
 
         file = files.find { |f| Pathname(f).expand_path.exist? }
 
@@ -124,7 +126,7 @@ class Cartage
         elsif filename
           fail ArgumentError, "Configuration file #{filename} does not exist."
         else
-          StringIO.new('{}')
+          StringIO.new("{}")
         end
       end
 
@@ -168,13 +170,13 @@ class Cartage
         {}.tap { |h|
           object.each_pair { |k, v|
             k = case convert_keys
-                when :to_s
-                  k.to_s
-                when :to_sym
-                  k.to_sym
-                else
-                  k
-                end
+            when :to_s
+              k.to_s
+            when :to_sym
+              k.to_sym
+            else
+              k
+            end
             h[k.to_s] = hashify(v)
           }
         }
