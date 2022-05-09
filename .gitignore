@@ -12,3 +12,5 @@ doc/
 pkg/
 tmp/
 .workenv
+.envrc
+.ruby-version
